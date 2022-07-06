@@ -1,0 +1,13 @@
+[
+    {
+        "val_loss": 1.5142158269882202,
+        "val_acc": 0.7757793664932251,
+        "val_acc_epoch": 0.7757793664932251,
+        "val_microPrecision": 0.7757793664932251,
+        "val_macroPrecision": 0.7508992552757263,
+        "val_microRecall": 0.7757793664932251,
+        "val_macroRecall": 0.7785772085189819,
+        "val_microF1": 0.7757793664932251,
+        "val_macroF1": 0.7580695152282715
+    }
+]
