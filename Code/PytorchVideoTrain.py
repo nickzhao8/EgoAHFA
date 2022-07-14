@@ -46,7 +46,7 @@ details inline.
 
 
 class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
-    def __init__(self, args):
+    def __init__(self, args=None):
         """
         This LightningModule implementation constructs a PyTorchVideo ResNet,
         defines the train and val loss to be trained with (cross_entropy), and

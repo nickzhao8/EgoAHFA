@@ -141,11 +141,12 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
             ),
         )
 
-    def train_dataloader(self):
+    def train_dataloader(self, **kwargs):
         """
         Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
         """
-        video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
+        # video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
+        video_sampler = RandomSampler
         train_transform = self._make_transforms(mode="train")
         skipped_val = False
         subdirs = Path(self.args.data_root).glob('*')
@@ -181,12 +182,12 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
             num_workers=self.args.workers,
         )
 
-    def val_dataloader(self):
+    def val_dataloader(self, **kwargs):
         """
         Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
         """
-        # video_sampler = RandomSampler
-        video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
+        video_sampler = RandomSampler
+        # video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
         val_transform = self._make_transforms(mode="val")
         made_val = False
         subdirs = Path(self.args.data_root).glob('*')

@@ -8,6 +8,11 @@ import os
 from pathlib import Path
 import json
 from datetime import datetime
+from grad_cam_slowfast import grad_cam, to_RGB, superimpose
+import torch
+import matplotlib.pyplot as plt
+from PIL import Image
+import glob
 
 date = datetime.now().strftime("%m_%d_%H%M")
 #os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
@@ -57,7 +62,7 @@ args.replace_sampler_ddp            = False
 # args.replace_sampler_ddp            = True
 
 # Required Parameters
-args.data_root                      = 'M:\\Wearable Hand Monitoring\\CODE AND DOCUMENTATION\\Nick Z\\Code\\GRASSP Annotation\\Video Segments'
+args.data_root                      = 'D:\\zhaon\\Datasets\\Video Segments'
 args.arch                           = "slowfast"
 args.val_sub                        = "Sub1"
 args.results_path                   = "Results/"+args.arch
@@ -72,21 +77,58 @@ args.results_path                   = "Results/"+args.arch
 def main():
     setup_logger()
 
-    args.val_sub = "Sub1"
+    for k in range(1,18):
+        args.val_sub = f"Sub{k}"
 
-    datamodule = GRASSP_classes.GRASSPDataModule(args)
-    classification_module = VideoClassificationLightningModule(args)
-    trainer = pytorch_lightning.Trainer.from_argparse_args(args)
+        datamodule = GRASSP_classes.GRASSPDataModule(args)
+        val_dataloader = datamodule.val_dataloader(shuffle=True)
+        classification_module = VideoClassificationLightningModule(args)
     
-    #trainer.fit(classification_module, datamodule)
+        # Load from checkpoint
+        modelroot = Path('..','..','..','GRASSP Annotation','Models')
+        modelpath = Path(modelroot, args.arch, f'slowfast_Sub{k}.ckpt')
+        model = classification_module.load_from_checkpoint(modelpath, args=args)
 
-    # Load from checkpoint
-    modelpath = Path('Models', args.arch, 'slowfast_Sub1.ckpt')
-    model = VideoClassificationLightningModule.load_from_checkpoint(modelpath)
+        # pathways = ['slow', 'fast']
+        # target_layers = [model.model.blocks[4].multipathway_blocks[0].res_blocks[1],
+        #                 model.model.blocks[4].multipathway_blocks[1].res_blocks[1]]
+        pathways = ['fast']
+        target_layers = [model.model.blocks[4].multipathway_blocks[1].res_blocks[1]]
+        for l, layer in enumerate(target_layers):
+            for j in range(10):
+                vid_dict = next(iter(val_dataloader)) 
+                vid_tensors = vid_dict['video']
 
-    import pdb; pdb.set_trace()
+                input_vid = vid_tensors[0]
 
+                heatmap = grad_cam(model.model, vid_tensors, layer)
 
+                # Convert video to list of image tensors and superimpose heatmap
+                imgs = []
+                saveroot = Path('..','Results', args.arch, 'Grad-CAM', pathways[l], f"Sub{k}", str(j))
+                os.makedirs(saveroot, exist_ok=True)
+                for i in range(input_vid.shape[2]):
+                    img = input_vid.index_select(2, torch.tensor(i)).squeeze()
+                    img = to_RGB(img)
+                    superimposed_img = superimpose(img, heatmap[i])
+                    imgs.append(superimposed_img)
+
+                    plt.imshow(imgs[i])
+                    plt.savefig(Path(saveroot, f'slowfast_Sub{k}_{j}_{i}'))
+
+                # Convert to .gif
+                frames = []
+                imgs = glob.glob(str(Path(saveroot, '*.png')))
+                for i in imgs:
+                    new_frame = Image.open(i)
+                    frames.append(new_frame)
+ 
+                # Save into a GIF file that loops forever
+                frames[0].save(Path(saveroot, f'slowfast_Sub{k}_{j}.gif'), 
+                    format='GIF',
+                    append_images=frames[1:],
+                    save_all=True,
+                    duration=300, loop=0)
 
 if __name__ == '__main__':
     main()
