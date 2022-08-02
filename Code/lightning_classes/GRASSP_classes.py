@@ -7,8 +7,9 @@ from pytorchvideo.data import LabeledVideoDataset
 from pytorchvideo.data.clip_sampling import ClipSampler
 from pytorchvideo.data.video import VideoPathHandler
 import torch
+from torch import Tensor
 
-from torch.utils.data import DistributedSampler, RandomSampler, ChainDataset
+from torch.utils.data import DistributedSampler, RandomSampler, ChainDataset, ConcatDataset
 from .transform_classes import PackPathway
 from pytorchvideo.transforms import (
     ApplyTransformToKey,
@@ -17,6 +18,9 @@ from pytorchvideo.transforms import (
     ShortSideScale,
     UniformTemporalSubsample,
 )
+from torchvision.datasets.vision import VisionDataset
+from torchvision.datasets.video_utils import VideoClips
+from torchvision.datasets.folder import make_dataset, find_classes
 from torchvision.transforms import (
     CenterCrop,
     Compose,
@@ -24,10 +28,10 @@ from torchvision.transforms import (
     RandomHorizontalFlip,
 )
 from torchvideo.transforms import NormalizeVideo
-from typing import Any, Callable, Iterable, Optional, Type
+from typing import Any, Callable, Iterable, Optional, Type, Dict, Tuple
 from pathlib import Path
 import json
-import os
+import os, gzip
 
 class GRASSPValidationCallback(Callback):
     #def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
@@ -218,97 +222,135 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
             num_workers=self.args.workers,
         )
 
-class ChainLabeledVideoDataset(LabeledVideoDataset):
-    r"""Dataset for chaining multiple LabeledVideoDatasets.
-        This class is useful to assemble different existing dataset streams. The
-        chaining operation is done on-the-fly, so concatenating large-scale
-        datasets with this class will be efficient.
-    """
+class GRASSPFastDataModule(GRASSPDataModule):
+    def train_dataloader(self, **kwargs):
+        """
+        Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
+        """
+        # video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
+        video_sampler = RandomSampler
+        train_transform = self._make_transforms(mode="train")
+        skipped_val = False
+        subdirs = Path(self.args.data_root).glob('*')
+        # labeled_video_paths = []
+        datasets = []
+        for subdir in subdirs:
+            subname = str(subdir).split('\\')[-1]
+            videoclip_file = Path(self.args.vidclip_root, f'{subname}_VideoClip.gz')
+            if subname.lower() == self.args.val_sub.lower():
+                skipped_val = True
+                continue
+            subdir = Path(self.args.data_root,subdir).resolve()
+            dataset = GRASSPDataset(
+                root                = subdir,
+                frames_per_clip     = self.args.num_frames,
+                frame_rate          = self.args.framerate,
+                step_between_clips  = self.args.stride,
+                transform           = train_transform,
+                num_workers         = self.args.workers,
+                videoclip_file      = videoclip_file,
+            )
+            datasets.append(dataset) 
 
+        assert skipped_val == True, "Invalid val_sub; val_sub not found."
+        self.train_dataset = ConcatDataset(datasets)
+        return torch.utils.data.DataLoader(
+            self.train_dataset,
+            batch_size=self.args.batch_size,
+            num_workers=self.args.workers,
+        )
+
+    def val_dataloader(self, **kwargs):
+        """
+        Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
+        """
+        video_sampler = RandomSampler
+        # video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
+        val_transform = self._make_transforms(mode="val")
+        made_val = False
+        subdirs = Path(self.args.data_root).glob('*')
+        #print(f"dataroot = {Path(self.args.data_root)}, valsub = {self.args.val_sub}")
+        for subdir in subdirs:
+            subname = str(subdir).split('\\')[-1]
+            videoclip_file = Path(self.args.vidclip_root, f'{subname}_VideoClip.gz')
+            if subname.lower() == self.args.val_sub.lower():
+                made_val = True
+                val_dataset = GRASSPDataset(
+                    root                = subdir,
+                    frames_per_clip     = self.args.num_frames,
+                    frame_rate          = self.args.framerate,
+                    step_between_clips  = self.args.stride,
+                    transform           = val_transform,
+                    num_workers         = self.args.workers,
+                    videoclip_file      = videoclip_file,
+                )
+        assert made_val == True, "Invalid val_sub; val_sub not found."
+
+        return torch.utils.data.DataLoader(
+            val_dataset,
+            batch_size=self.args.batch_size,
+            num_workers=self.args.workers,
+        )
+
+
+class GRASSPDataset(VisionDataset):
     def __init__(
         self,
-        datasets: Iterable[LabeledVideoDataset],
-        clip_sampler: ClipSampler,
-        video_sampler: Type[torch.utils.data.Sampler] = torch.utils.data.RandomSampler,
-        transform: Optional[Callable[[dict], Any]] = None,
-        decode_audio: bool = True,
-        decoder: str = "pyav",
+        root: str,
+        frames_per_clip: int,
+        frame_rate: Optional[int] = None,
+        step_between_clips: int = 1,
+        transform: Optional[Callable] = None,
+        extensions: Tuple[str, ...] = ("mp4"),
+        num_workers: int = 1,
+        videoclip_file: str = None,
+        _video_width: int = 0,
+        _video_height: int = 0,
     ) -> None:
-        """
-        Args:
-            labeled_video_paths (List[Tuple[str, Optional[dict]]]): List containing
-                LabeledVideoDatasets.
 
-            clip_sampler (ClipSampler): Defines how clips should be sampled from each
-                video. See the clip sampling documentation for more information.
+        self.extensions = extensions
 
-            video_sampler (Type[torch.utils.data.Sampler]): Sampler for the internal
-                video container. This defines the order videos are decoded and,
-                if necessary, the distributed split.
+        self.root = root
 
-            transform (Callable): This callable is evaluated on the clip output before
-                the clip is returned. It can be used for user defined preprocessing and
-                augmentations on the clips. The clip output format is described in __next__().
+        super().__init__(self.root)
 
-            decode_audio (bool): If True, also decode audio from video.
-
-            decoder (str): Defines what type of decoder used to decode a video. Not used for
-                frame videos.
-        """
-        self._decode_audio = decode_audio
-        self._transform = transform
-        self._clip_sampler = clip_sampler
-        self._datasets = datasets
-        self._decoder = decoder
-
-        # If a RandomSampler is used we need to pass in a custom random generator that
-        # ensures all PyTorch multiprocess workers have the same random seed.
-        self._video_random_generator = None
-        if video_sampler == torch.utils.data.RandomSampler:
-            self._video_random_generator = torch.Generator()
-            self._video_sampler = video_sampler(
-                self._labeled_videos, generator=self._video_random_generator
-            )
+        self.classes, class_to_idx = find_classes(self.root)
+        self.samples = make_dataset(self.root, class_to_idx, extensions, is_valid_file=None)
+        video_list = [x[0] for x in self.samples]
+        if videoclip_file is not None:
+            self.video_clips = torch.load(gzip.GzipFile(videoclip_file))
         else:
-            self._video_sampler = video_sampler(self._labeled_videos)
+            self.video_clips = VideoClips(
+                video_list,
+                frames_per_clip,
+                step_between_clips,
+                frame_rate,
+                num_workers=num_workers,
+                _video_width=_video_width,
+                _video_height=_video_height,
+            )
+        self.transform = transform
 
-        self._video_sampler_iter = None  # Initialized on first call to self.__next__()
+    @property
+    def metadata(self) -> Dict[str, Any]:
+        return self.video_clips.metadata
 
-        # Depending on the clip sampler type, we may want to sample multiple clips
-        # from one video. In that case, we keep the store video, label and previous sampled
-        # clip time in these variables.
-        self._loaded_video_label = None
-        self._loaded_clip = None
-        self._next_clip_start_time = 0.0
-        self.video_path_handler = VideoPathHandler()
+    def __len__(self) -> int:
+        return self.video_clips.num_clips()
 
-    def __iter__(self):
-        for d in self._datasets:
-            assert isinstance(d, LabeledVideoDataset), "ChainLabeledVideoDataset only supports LabeledVideoDataset"
-            for x in d:
-                yield x
+    def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor, int]:
+        video, audio, info, video_idx = self.video_clips.get_clip(idx)
+        video = video.permute(3,0,1,2)
+        label = self.samples[video_idx][1]
+        clip_dict = {
+            'video':video.float(),
+            'video_name':self.samples[video_idx][0],
+            'video_index':video_idx,
+            'clip_index':idx,
+            'label':label,
+        }
 
-    def __iter__(self):
-        self._video_sampler_iter = None  # Reset video sampler
+        if self.transform is not None:
+            clip_dict = self.transform(clip_dict)
 
-        # If we're in a PyTorch DataLoader multiprocessing context, we need to use the
-        # same seed for each worker's RandomSampler generator. The workers at each
-        # __iter__ call are created from the unique value: worker_info.seed - worker_info.id,
-        # which we can use for this seed.
-        worker_info = torch.utils.data.get_worker_info()
-        if self._video_random_generator is not None and worker_info is not None:
-            base_seed = worker_info.seed - worker_info.id
-            self._video_random_generator.manual_seed(base_seed)
-
-        for d in self._datasets:
-            assert isinstance(d, LabeledVideoDataset), "ChainLabeledVideoDataset only supports LabeledVideoDataset"
-            for x in d:
-                yield x
-        #return self
-
-    def __len__(self):
-        total = 0
-        for d in self._datasets:
-            assert isinstance(d, LabeledVideoDataset), "ChainLabeledVideoDataset only supports LabeledVideoDataset"
-            total += len(d)
-        return total
+        return clip_dict

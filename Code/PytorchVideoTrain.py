@@ -10,7 +10,7 @@ import json
 
 import pytorch_lightning
 import pytorchvideo.data
-import pytorchvideo.models.resnet
+import pytorchvideo.models
 import torch
 import torch.nn.functional as F
 from pytorch_lightning.callbacks import LearningRateMonitor
@@ -88,6 +88,18 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 slowfast_channel_reduction_ratio=int(1/self.args.slowfast_beta),
                 slowfast_conv_channel_fusion_ratio=self.args.slowfast_alpha,
             )
+            self.batch_key = "video"
+        elif self.args.arch == 'mvit':
+            self.model = pytorchvideo.models.vision_transformers.create_multiscale_vision_transformers(
+            spatial_size=self.args.video_crop_size,
+            temporal_size=self.args.num_frames,
+            embed_dim_mul           = self.args.mvit_embed_dim_mul,
+            atten_head_mul          = self.args.mvit_atten_head_mul,
+            pool_q_stride_size      = self.args.mvit_pool_q_stride_size,
+            pool_kv_stride_adaptive = self.args.mvit_pool_kv_stride_adaptive,
+            pool_kvq_kernel         = self.args.mvit_pool_kvq_kernel,
+            head_num_classes        = self.args.num_classes,
+        )
             self.batch_key = "video"
         else:
             raise Exception("{self.args.arch} not supported")
@@ -201,111 +213,26 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         """
         We use the SGD optimizer with per step cosine annealing scheduler.
         """
-        optimizer = torch.optim.SGD(
-            self.parameters(),
-            lr=self.args.lr,
-            momentum=self.args.momentum,
-            weight_decay=self.args.weight_decay,
-        )
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, self.args.max_epochs, last_epoch=-1
-        )
+        if self.args.arch == 'mvit':
+            optimizer = torch.optim.AdamW(
+                self.parameters(),
+                lr=self.args.lr,
+                weight_decay=self.args.weight_decay,
+            )
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, self.args.max_epochs, last_epoch=-1
+            )
+        else:
+            optimizer = torch.optim.SGD(
+                self.parameters(),
+                lr=self.args.lr,
+                momentum=self.args.momentum,
+                weight_decay=self.args.weight_decay,
+            )
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, self.args.max_epochs, last_epoch=-1
+            )
         return [optimizer], [scheduler]
-
-
-    
-
-
-def main():
-    """
-    To train the ResNet with the Kinetics dataset we construct the two modules above,
-    and pass them to the fit function of a pytorch_lightning.Trainer.
-
-    This example can be run either locally (with default parameters) or on a Slurm
-    cluster. To run on a Slurm cluster provide the --on_cluster argument.
-    """
-    setup_logger()
-
-    pytorch_lightning.trainer.seed_everything()
-    parser = argparse.ArgumentParser()
-
-    #  Cluster parameters.
-    parser.add_argument("--on_cluster", action="store_true")
-    parser.add_argument("--job_name", default="ptv_video_classification", type=str)
-    parser.add_argument("--working_directory", default=".", type=str)
-    parser.add_argument("--partition", default="dev", type=str)
-
-    # Model parameters.
-    parser.add_argument("--lr", "--learning-rate", default=0.1, type=float)
-    parser.add_argument("--momentum", default=0.9, type=float)
-    parser.add_argument("--weight_decay", default=1e-4, type=float)
-
-    parser.add_argument("--arch",default="slowfast",type=str,required=True)
-
-    # Data parameters.
-    #parser.add_argument("--data_path", default=None, type=str, required=True)
-    parser.add_argument("--data_root", default=None, type=str, required=True)
-    #parser.add_argument("--val_sub", default=None, type=str, required=True)
-    parser.add_argument("--slowfast_alpha", default=4, type=int)
-    parser.add_argument("--slowfast_beta", default=1/8, type=float)
-    parser.add_argument("--num_frames", default=32, type=int)
-    parser.add_argument("--num_classes", default=5, type=int)
-
-    parser.add_argument("--video_path_prefix", default="", type=str)
-    parser.add_argument("--workers", default=8, type=int)
-    parser.add_argument("--batch_size", default=32, type=int)
-    parser.add_argument("--clip_duration", default=1, type=float)
-    parser.add_argument(
-        "--data_type", default="video", choices=["video", "audio"], type=str
-    )
-    #parser.add_argument("--default_root_dir", default="Models", type=str)
-    parser.add_argument("--video_means", default=(0.45, 0.45, 0.45), type=tuple)
-    parser.add_argument("--video_stds", default=(0.225, 0.225, 0.225), type=tuple)
-    parser.add_argument("--video_crop_size", default=224, type=int)
-    parser.add_argument("--video_min_short_side_scale", default=256, type=int)
-    parser.add_argument("--video_max_short_side_scale", default=320, type=int)
-    parser.add_argument("--video_horizontal_flip_p", default=0.5, type=float)
-
-    # Trainer parameters.
-    parser = pytorch_lightning.Trainer.add_argparse_args(parser)
-    parser.set_defaults(
-        max_epochs=2,
-        callbacks=[LearningRateMonitor()],
-        replace_sampler_ddp=False,
-    )
-
-    # Build trainer, ResNet lightning-module and Kinetics data-module.
-    args = parser.parse_args()
-
-    for subdir in os.listdir(args.data_root):
-        args.val_sub = subdir
-        train(args)
-    #val(args)
-
-
-def train(args):
-    trainer = pytorch_lightning.Trainer.from_argparse_args(args)
-    classification_module = VideoClassificationLightningModule(args)
-    data_module = GRASSPDataModule(args)
-    trainer.fit(classification_module, data_module)
-
-    # Save checkpoint
-    model_dir = Path('Models', args.arch)
-    os.makedirs(model_dir, exist_ok=True)
-    model_path = Path(model_dir, f"{args.arch}_{args.val_sub}.ckpt")
-    trainer.save_checkpoint(model_path)
-
-    # Validate
-    #classification_module = VideoClassificationLightningModule.load_from_checkpoint('slowfasttest.ckpt', args=args)
-    metrics = trainer.validate(classification_module, data_module)
-
-    # Save metrics to json
-    results_dir = Path('Results', args.arch)
-    os.makedirs(results_dir, exist_ok=True)
-    savefile = Path(results_dir, args.val_sub + "_metrics.json")
-    with open(savefile, 'w') as f:
-        json.dump(metrics, f, indent=4)
-
 
 def setup_logger():
     ch = logging.StreamHandler()
@@ -315,6 +242,3 @@ def setup_logger():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(ch)
 
-
-if __name__ == "__main__":
-    main()
