@@ -36,3 +36,7 @@ _ReSharper*/
 packages/
 
 Code/pytorch_grad_cam/
+
+*.ckpt
+
+lightning_logs/
