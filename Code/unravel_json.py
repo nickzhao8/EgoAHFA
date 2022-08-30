@@ -4,10 +4,10 @@ import os
 from pathlib import Path
 
 
-results_path = Path('Results', 'slowfast', 'Raw')
+results_path = Path('Results', 'mvit', 'Raw')
 results_files = os.listdir(results_path)
 
-out_path = Path('Results', 'slowfast', 'Raw_unraveled_renamed')
+out_path = Path('Results', 'mvit', 'Raw_unraveled')
 
 
 for filename in results_files:
@@ -16,15 +16,17 @@ for filename in results_files:
         # import pdb; pdb.set_trace()
 
         sub = filename.split('_')[0]
-        classes = os.listdir(Path('Video Segments', sub))
+        classes = os.listdir(Path('D:\\zhaon\\Datasets\\Video Segments', sub))
 
         #flatten preds and target lists
         flat_preds = [x for xs in data['preds'] for x in xs]
         flat_target = [x for xs in data['target'] for x in xs]
 
         for i in range(len(flat_preds)):
-            flat_preds[i] = int(classes[flat_preds[i]])
-            flat_target[i] = int(classes[flat_target[i]])
+            # flat_preds[i] = int(classes[flat_preds[i]])
+            # flat_target[i] = int(classes[flat_target[i]])
+            flat_preds[i] = int(flat_preds[i])
+            flat_target[i] = int(flat_target[i])
 
         data['preds'] = flat_preds
         data['target'] = flat_target

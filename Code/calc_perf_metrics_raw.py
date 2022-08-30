@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import torch
 from torchmetrics.functional import f1_score, precision, recall, accuracy
 
-results_path = Path('Results', 'slowfast', 'Raw_unraveled')
+results_path = Path('Results', 'mvit', 'Raw_unraveled')
 results_files = os.listdir(results_path)
 
 pred_metrics = {}
@@ -16,7 +16,7 @@ total_target = []
 for filename in results_files:
     pred_metrics[filename] = {}
     sub = filename.split('_')[0]
-    classes = os.listdir(Path('Video Segments', sub))
+    classes = os.listdir(Path('D:\\zhaon\\Datasets\\Video Segments', sub))
     with open(Path(results_path, filename)) as file:
         data = json.load(file)
         total_preds.extend(data['preds'])
@@ -34,7 +34,7 @@ for filename in results_files:
         pred_metrics[filename]['accuracy'] = accuracy(preds, target)
 
         #import pdb; pdb.set_trace()
-        print(filename, pred_metrics[filename]['micro_f1'])
+        print(filename, pred_metrics[filename])
 
 
     # import pdb; pdb.set_trace()
@@ -42,6 +42,6 @@ for filename in results_files:
 
 ### PLOT CONFUSION MATRIX ###
 # import pdb; pdb.set_trace()
-ConfusionMatrixDisplay.from_predictions(total_target, total_preds, normalize='all')
-plt.show()
+# ConfusionMatrixDisplay.from_predictions(total_target, total_preds, normalize='all')
+# plt.show()
 
