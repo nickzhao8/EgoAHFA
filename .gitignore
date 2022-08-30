@@ -40,3 +40,5 @@ Code/pytorch_grad_cam/
 *.ckpt
 
 lightning_logs/
+
+Logs/

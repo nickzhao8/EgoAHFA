@@ -18,44 +18,16 @@ import torchmetrics
 from lightning_classes.GRASSP_classes import GRASSPDataModule
 
 
-"""
-This video classification example demonstrates how PyTorchVideo models, datasets and
-transforms can be used with PyTorch Lightning module. Specifically it shows how a
-simple pipeline to train a Resnet on the Kinetics video dataset can be built.
-
-Don't worry if you don't have PyTorch Lightning experience. We'll provide an explanation
-of how the PyTorch Lightning module works to accompany the example.
-
-The code can be separated into three main components:
-1. VideoClassificationLightningModule (pytorch_lightning.LightningModule), this defines:
-    - how the model is constructed,
-    - the inner train or validation loop (i.e. computing loss/metrics from a minibatch)
-    - optimizer configuration
-
-2. KineticsDataModule (pytorch_lightning.LightningDataModule), this defines:
-    - how to fetch/prepare the dataset
-    - the train and val dataloaders for the associated dataset
-
-3. pytorch_lightning.Trainer, this is a concrete PyTorch Lightning class that provides
-  the training pipeline configuration and a fit(<lightning_module>, <data_module>)
-  function to start the training/validation loop.
-
-All three components are combined in the train() function. We'll explain the rest of the
-details inline.
-"""
-
-
 class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
     def __init__(self, args=None):
-        """
-        This LightningModule implementation constructs a PyTorchVideo ResNet,
-        defines the train and val loss to be trained with (cross_entropy), and
-        configures the optimizer.
-        """
         self.args = args
         super().__init__()
         self.train_accuracy = torchmetrics.Accuracy()
+        self.train_MAE = torchmetrics.MeanAbsoluteError()
         self.val_accuracy = torchmetrics.Accuracy()
+        self.val_MAE = torchmetrics.MeanAbsoluteError()
+        self.val.MSE = torchmetrics.MeanSquaredError(squared=True)
+        self.val.RMSE = torchmetrics.MeanSquaredError(squared=False)
         self.val_microPrecision = torchmetrics.Precision(average='micro', num_classes=self.args.num_classes)
         self.val_macroPrecision = torchmetrics.Precision(average='macro', num_classes=self.args.num_classes)
         self.val_microRecall = torchmetrics.Recall(average='micro', num_classes=self.args.num_classes)
@@ -67,14 +39,6 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         self.val_target = []
         self.val_tasks = {}
 
-        #############
-        # PTV Model #
-        #############
-
-        # Here we construct the PyTorchVideo model. For this example we're using a
-        # ResNet that works with Kinetics (e.g. 400 num_classes). For your application,
-        # this could be changed to any other PyTorchVideo model (e.g. for SlowFast use
-        # create_slowfast).
         if self.args.arch == "video_resnet":
             self.model = pytorchvideo.models.resnet.create_resnet(
                 input_channel=3,
@@ -90,15 +54,24 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             )
             self.batch_key = "video"
         elif self.args.arch == 'mvit':
-            self.model = pytorchvideo.models.vision_transformers.create_multiscale_vision_transformers(
-            spatial_size=self.args.video_crop_size,
-            temporal_size=self.args.num_frames,
-            embed_dim_mul           = self.args.mvit_embed_dim_mul,
-            atten_head_mul          = self.args.mvit_atten_head_mul,
-            pool_q_stride_size      = self.args.mvit_pool_q_stride_size,
-            pool_kv_stride_adaptive = self.args.mvit_pool_kv_stride_adaptive,
-            pool_kvq_kernel         = self.args.mvit_pool_kvq_kernel,
-            head_num_classes        = self.args.num_classes,
+            if self.args.transfer_learning:
+                self.model = torch.hub.load('facebookresearch/pytorchvideo', model='mvit_base_16x4', pretrained=True)
+                # Freeze model
+                for param in self.model.parameters():
+                    param.requires_grad = False
+                num_features = self.model.head.proj.in_features
+                self.model.head.proj = torch.nn.Linear(num_features, self.args.num_classes)
+            else:
+                self.model = pytorchvideo.models.vision_transformers.create_multiscale_vision_transformers(
+                spatial_size=self.args.video_crop_size,
+                temporal_size=self.args.num_frames,
+                embed_dim_mul           = self.args.mvit_embed_dim_mul,
+                atten_head_mul          = self.args.mvit_atten_head_mul,
+                pool_q_stride_size      = self.args.mvit_pool_q_stride_size,
+                pool_kv_stride_adaptive = self.args.mvit_pool_kv_stride_adaptive,
+                pool_kvq_kernel         = self.args.mvit_pool_kvq_kernel,
+                head_num_classes        = self.args.num_classes,
+
         )
             self.batch_key = "video"
         else:
@@ -112,52 +85,33 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         epoch = self.trainer.current_epoch
         if self.trainer._accelerator_connector.is_distributed:
            self.trainer.datamodule.train_dataset.video_sampler.set_epoch(epoch)
+        self.train_losses = []
+        self.train_accs = []
+        self.train_maes = []
 
     def forward(self, x):
-        """
-        Forward defines the prediction/inference actions.
-        """
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        """
-        This function is called in the inner loop of the training epoch. It must
-        return a loss that is used for loss.backwards() internally. The self.log(...)
-        function can be used to log any training metrics.
-
-        PyTorchVideo batches are dictionaries containing each modality or metadata of
-        the batch collated video clips. Kinetics contains the following notable keys:
-           {
-               'video': <video_tensor>,
-               'audio': <audio_tensor>,
-               'label': <action_label>,
-           }
-
-        - "video" is a Tensor of shape (batch, channels, time, height, Width)
-        - "audio" is a Tensor of shape (batch, channels, time, 1, frequency)
-        - "label" is a Tensor of shape (batch, 1)
-
-        The PyTorchVideo models and transforms expect the same input shapes and
-        dictionary structure making this function just a matter of unwrapping the dict and
-        feeding it through the model/loss.
-        """
         x = batch[self.batch_key]
         # import pdb; pdb.set_trace()
         y_hat = self.model(x)
         loss = F.cross_entropy(y_hat, batch["label"])
-        acc = self.train_accuracy(F.softmax(y_hat, dim=-1), batch["label"])
-        self.log("train_loss", loss)
-        self.log(
-            "train_acc", acc, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True
-        )
+        if ((batch_idx % self.args.log_every_n_steps) == 0):
+            acc = self.train_accuracy(F.softmax(y_hat, dim=-1), batch["label"])
+            mae = self.train_MAE(F.softmax(y_hat, dim=-1), batch["label"])
+            self.train_losses.append(loss)
+            self.train_accs.append(acc)
+            self.train_maes.append(mae)
+            avg_loss = torch.mean(torch.stack(self.train_losses))
+            avg_acc = torch.mean(torch.stack(self.train_accs))
+            avg_mae = torch.mean(torch.stack(self.train_maes))
+            self.logger.experiment.add_scalar("Loss/Train", avg_loss, batch_idx)
+            self.logger.experiment.add_scalar("Accuracy/Train", avg_acc, batch_idx)
+            self.logger.experiment.add_scalar("MAE/Train", avg_mae, batch_idx)
         return loss
-
+    
     def validation_step(self, batch, batch_idx):
-        """
-        This function is called in the inner loop of the evaluation cycle. For this
-        simple example it's mostly the same as the training loop but with a different
-        metric name.
-        """
         x = batch[self.batch_key]
         y_hat = self.model(x)
         loss = F.cross_entropy(y_hat, batch["label"])
@@ -165,6 +119,9 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         target = batch["label"]
         # Calculate metrics
         acc = self.val_accuracy(preds, target)
+        MAE = self.val_MAE(preds, target)
+        MSE = self.val_MSE(preds, target)
+        RMSE = self.val_RMSE(preds, target)
         microPrecision = self.val_microPrecision(preds, target)
         macroPrecision = self.val_macroPrecision(preds, target)
         microRecall = self.val_microRecall(preds, target)
@@ -177,6 +134,9 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             "val_acc", acc, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True
         )
         metrics = {
+            'val_MAE': MAE,
+            'val_MSE': MSE,
+            'val_RMSE': RMSE,
             "val_microPrecision": microPrecision,
             "val_macroPrecision": macroPrecision,
             "val_microRecall": microRecall,
@@ -189,6 +149,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         preds = self.softmax_index(preds.tolist())
         self.val_tasks = self.record_tasks(self.val_tasks, preds, target.tolist(), batch['video_name'])
         self.val_preds.append(preds)
+        self.val_loss.append(loss.tolist())
         self.val_target.append(target.tolist())
         return loss
     
@@ -210,9 +171,6 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         return tasks
 
     def configure_optimizers(self):
-        """
-        We use the SGD optimizer with per step cosine annealing scheduler.
-        """
         if self.args.arch == 'mvit':
             optimizer = torch.optim.AdamW(
                 self.parameters(),

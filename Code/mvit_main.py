@@ -2,18 +2,20 @@ from lightning_classes import GRASSP_classes
 from PytorchVideoTrain import VideoClassificationLightningModule, setup_logger
 import argparse
 import pytorch_lightning
-from pytorch_lightning.profiler import AdvancedProfiler
+from pytorch_lightning.profiler import AdvancedProfiler, PyTorchProfiler
 from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.loggers import TensorBoardLogger
 import os
 from pathlib import Path
 import json
 from datetime import datetime
 
-date = datetime.now().strftime("%m_%d_%H%M")
 #os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
 
-pytorch_lightning.trainer.seed_everything(seed=1)
+# pytorch_lightning.trainer.seed_everything(seed=1)
+pytorch_lightning.trainer.seed_everything()
 parser  =  argparse.ArgumentParser()
+date = datetime.now().strftime("%m_%d_%H")
 
 # Trainer parameters.
 parser  =  pytorch_lightning.Trainer.add_argparse_args(parser)
@@ -40,28 +42,35 @@ args.video_horizontal_flip_p        = float(0.5)
 
 # Adjustable Parameters
 args.workers                        = int(4)
-args.batch_size                     = int(1)
-args.clip_duration                  = float(1)
-args.framerate                      = int(30)
-args.num_frames                     = int(30)
-args.stride                         = int(args.num_frames/2)
+args.batch_size                     = int(2)
+args.framerate                      = int(8)
+args.num_frames                     = int(16)
+args.clip_duration                  = float(args.num_frames/args.framerate)
+args.stride                         = int(4)
 args.num_classes                    = int(6)
+args.shuffle                        = True
+
+# Required Parameters
+args.data_root                      = 'D:\\zhaon\\Datasets\\Video_JPG_Stack'
+# args.data_root                      = 'D:\\zhaon\\Datasets\\Video Segments'
+# args.vidclip_root                   = 'D:\\zhaon\\Datasets\\torch_VideoClips'
+args.arch                           = "mvit"
+args.annotation_filename            = 'annotation_16x4.txt'
 
 # Pytorch Lightning Parameters
 args.accelerator                    = 'gpu'
 args.devices                        = 1
 # args.strategy                       = 'ddp'
-args.max_epochs                     = 20
+args.max_epochs                     = 14
 args.callbacks                      = [LearningRateMonitor(), GRASSP_classes.GRASSPValidationCallback()]
-args.replace_sampler_ddp            = False
-# args.replace_sampler_ddp            = True
-
-# Required Parameters
-args.data_root                      = 'D:\\zhaon\\Datasets\\Video Segments'
-args.vidclip_root                   = 'D:\\zhaon\\Datasets\\torch_VideoClips'
-args.arch                           = "mvit"
+args.replace_sampler_ddp            = True
+args.precision                      = 16
+args.log_root                       = 'Logs'
+args.logger                         = TensorBoardLogger(args.log_root, name=f"{args.arch}_model")
+args.log_every_n_steps              = 10
 
 # Model-specific Parameters
+args.transfer_learning              = True
 args.slowfast_alpha                 = int(4)
 args.slowfast_beta                  = float(1/8)
 args.mvit_embed_dim_mul                  = [[1, 2.0], [3, 2.0], [14, 2.0]]
@@ -71,32 +80,39 @@ args.mvit_pool_kv_stride_adaptive        = [1, 8, 8]
 args.mvit_pool_kvq_kernel                = [3, 3, 3]
 
 # Debugging Parameters
-# args.fast_dev_run                   = 30
+# args.fast_dev_run                   = 100
+# args.limit_train_batches            = 1000
+# args.limit_val_batches              = 1000
+args.enable_checkpointing           = False
 # profiler = AdvancedProfiler(dirpath='Debug',filename='profilereport_'+date)
-#args.profiler                       = profiler
+# profiler = PyTorchProfiler(dirpath='Debug',filename='profilereport_'+date)
+# args.profiler                       = profiler
 
 #print(args)
 
 def main():
     setup_logger()
 
-    # for subdir in os.listdir(args.data_root):
-    if True: # Dont want to unindent im lazy
-        args.val_sub = 'Sub3'
-        args.results_path = f'../Results/{args.arch}'
-
+    for subdir in os.listdir(args.data_root):
+    # if True: # Dont want to unindent im lazy
+        args.val_sub = subdir
+        args.results_path = f'Results/{args.arch}_{date}'
+        args.logger                         = TensorBoardLogger(args.log_root, 
+                                                                name=f"{args.arch}_model",
+                                                                version=args.val_sub)
         # DEBUG: start at later sub
         # skipsubs = ['Sub1','Sub10','Sub11','Sub12','Sub13','Sub14','Sub15']
         # if subdir in skipsubs: continue
 
-        datamodule = GRASSP_classes.GRASSPFastDataModule(args)
+        datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
+        # datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
         classification_module = VideoClassificationLightningModule(args)
         trainer = pytorch_lightning.Trainer.from_argparse_args(args)
 
         trainer.fit(classification_module, datamodule)
 
         # Save checkpoint
-        model_dir = Path('..', 'Models', args.arch)
+        model_dir = Path('Models', f'{args.arch}_{date}')
         os.makedirs(model_dir, exist_ok=True)
         model_path = Path(model_dir, f"{args.arch}_{args.val_sub}.ckpt")
         trainer.save_checkpoint(model_path)
