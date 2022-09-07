@@ -40,12 +40,18 @@ class GRASSPValidationCallback(Callback):
     #def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
     #    import pdb; pdb.set_trace()
     #    print("Validation batch is starting")
+    def dumper(obj):
+        try:
+            return obj.toJSON()
+        except:
+            return obj.__dict__
 
     def on_validation_start(self, trainer, pl_module):
         #import pdb; pdb.set_trace()
         pl_module.val_preds = []
         pl_module.val_target = []
         pl_module.val_tasks = {}
+        pl_module.val_filenames = {}
         pl_module.val_loss = []
 
         print("STARTING VALIDATION, RESETTING METRICS")
@@ -60,10 +66,12 @@ class GRASSPValidationCallback(Callback):
             "preds":pl_module.val_preds,
             "target":pl_module.val_target,
             "loss":pl_module.val_loss,
-            "tasks":pl_module.val_tasks
+            "tasks":pl_module.val_tasks,
+            "filenames":pl_module.val_filenames,
+            'args':vars(pl_module.args),
         }
         with open(savefile, 'w') as f:
-            json.dump(metrics, f, indent=4)
+            json.dump(metrics, f, default=self.dumper, indent=4)
         print(f'Saved raw results to {str(savefile)}')
     
     def on_fit_end(self, trainer, pl_module):
@@ -380,7 +388,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
 
         return torch.utils.data.DataLoader(
             val_dataset,
-            shuffle=self.args.shuffle,
+            shuffle=False,
             batch_size=self.args.batch_size,
             num_workers=self.args.workers,
             pin_memory=True,

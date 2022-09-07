@@ -37,6 +37,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
 
         self.val_preds = []
         self.val_target = []
+        self.val_loss = []
         self.val_tasks = {}
 
         if self.args.arch == "video_resnet":
@@ -159,6 +160,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
         # Custom preds, target, tasks Logging
         preds = self.softmax_index(preds.tolist())
+        self.val_filenames = self.record_filenames(self.val_filenames, preds, target.tolist(), batch)
         self.val_tasks = self.record_tasks(self.val_tasks, preds, target.tolist(), batch['video_name'])
         self.val_preds.append(preds)
         self.val_loss.append(loss.tolist())
@@ -181,6 +183,22 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 tasks[video_name]['preds'] = [preds[i]]
                 tasks[video_name]['target'] = [target[i]]
         return tasks
+
+    def record_filenames(self, filenames, preds, target, batch):
+        video_names = batch['video_name']
+        clip_index = batch['clip_index']
+        for i in range(len(target)): # Iterate through batch
+            video_name = video_names[i]
+            if video_name in filenames:
+                filenames[video_name]['preds'].append(preds[i])
+                filenames[video_name]['target'].append(target[i])
+                filenames[video_name]['clip_index'].append(clip_index[i].item())
+            else:
+                filenames[video_name] = {}
+                filenames[video_name]['preds'] = [preds[i]]
+                filenames[video_name]['target'] = [target[i]]
+                filenames[video_name]['clip_index'] = [clip_index[i].item()]
+        return filenames
 
     def configure_optimizers(self):
         if self.args.arch == 'mvit':
