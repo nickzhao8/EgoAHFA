@@ -26,8 +26,8 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         self.train_MAE = torchmetrics.MeanAbsoluteError()
         self.val_accuracy = torchmetrics.Accuracy()
         self.val_MAE = torchmetrics.MeanAbsoluteError()
-        self.val.MSE = torchmetrics.MeanSquaredError(squared=True)
-        self.val.RMSE = torchmetrics.MeanSquaredError(squared=False)
+        self.val_MSE = torchmetrics.MeanSquaredError(squared=True)
+        self.val_RMSE = torchmetrics.MeanSquaredError(squared=False)
         self.val_microPrecision = torchmetrics.Precision(average='micro', num_classes=self.args.num_classes)
         self.val_macroPrecision = torchmetrics.Precision(average='macro', num_classes=self.args.num_classes)
         self.val_microRecall = torchmetrics.Recall(average='micro', num_classes=self.args.num_classes)
@@ -50,9 +50,19 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 input_channels=(3,3),
                 model_num_class=self.args.num_classes,
                 slowfast_channel_reduction_ratio=int(1/self.args.slowfast_beta),
-                slowfast_conv_channel_fusion_ratio=self.args.slowfast_alpha,
+                slowfast_conv_channel_fusion_ratio=self.args.slowfast_fusion_conv_channel_ratio,
+                slowfast_fusion_conv_kernel_size=(self.args.slowfast_fusion_kernel_size, 1, 1),
+                slowfast_fusion_conv_stride=(self.args.slowfast_alpha, 1, 1), 
             )
             self.batch_key = "video"
+            if self.args.transfer_learning:
+                state_dict = torch.load(self.args.pretrained_state_dict)
+                self.model.load_state_dict(state_dict, strict=False)
+                # Freeze model
+                for param in self.model.parameters():
+                    param.requires_grad = False
+                num_features = self.model.blocks[6].proj.in_features
+                self.model.blocks[6].proj = torch.nn.Linear(num_features, self.args.num_classes)
         elif self.args.arch == 'mvit':
             if self.args.transfer_learning:
                 self.model = torch.hub.load('facebookresearch/pytorchvideo', model='mvit_base_16x4', pretrained=True)
@@ -98,8 +108,9 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         y_hat = self.model(x)
         loss = F.cross_entropy(y_hat, batch["label"])
         if ((batch_idx % self.args.log_every_n_steps) == 0):
-            acc = self.train_accuracy(F.softmax(y_hat, dim=-1), batch["label"])
-            mae = self.train_MAE(F.softmax(y_hat, dim=-1), batch["label"])
+            preds = F.softmax(y_hat, dim=-1)
+            acc = self.train_accuracy(preds, batch["label"])
+            mae = self.train_MAE(torch.argmax(preds, dim=1), batch["label"])
             self.train_losses.append(loss)
             self.train_accs.append(acc)
             self.train_maes.append(mae)
@@ -116,12 +127,13 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         y_hat = self.model(x)
         loss = F.cross_entropy(y_hat, batch["label"])
         preds = F.softmax(y_hat, dim=-1)
+        pred_labels = torch.argmax(preds, dim=1)
         target = batch["label"]
         # Calculate metrics
         acc = self.val_accuracy(preds, target)
-        MAE = self.val_MAE(preds, target)
-        MSE = self.val_MSE(preds, target)
-        RMSE = self.val_RMSE(preds, target)
+        MAE = self.val_MAE(pred_labels, target)
+        MSE = self.val_MSE(pred_labels, target)
+        RMSE = self.val_RMSE(pred_labels, target)
         microPrecision = self.val_microPrecision(preds, target)
         macroPrecision = self.val_macroPrecision(preds, target)
         microRecall = self.val_microRecall(preds, target)

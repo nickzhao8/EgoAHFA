@@ -301,7 +301,7 @@ class GRASSPFastDataModule(GRASSPDataModule):
 
         return torch.utils.data.DataLoader(
             val_dataset,
-            shuffle=self.args.shuffle,
+            shuffle=False,
             batch_size=self.args.batch_size,
             num_workers=self.args.workers,
             pin_memory=True,

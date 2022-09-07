@@ -42,3 +42,5 @@ Code/pytorch_grad_cam/
 lightning_logs/
 
 Logs/
+
+Models/

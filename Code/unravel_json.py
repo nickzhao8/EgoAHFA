@@ -4,10 +4,10 @@ import os
 from pathlib import Path
 
 
-results_path = Path('Results', 'mvit', 'Raw')
+results_path = Path('Results', 'mvit_08_23_14', 'Raw')
 results_files = os.listdir(results_path)
 
-out_path = Path('Results', 'mvit', 'Raw_unraveled')
+out_path = Path('Results', 'mvit_08_23_14', 'Raw_unraveled')
 
 
 for filename in results_files:

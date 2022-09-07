@@ -40,40 +40,46 @@ args.video_min_short_side_scale     = int(256)
 args.video_max_short_side_scale     = int(320)
 args.video_horizontal_flip_p        = float(0.5)
 
-# Adjustable Parameters
+# Trainer Parameters
 args.workers                        = int(4)
-args.batch_size                     = int(2)
-args.framerate                      = int(8)
-args.num_frames                     = int(16)
-args.clip_duration                  = float(args.num_frames/args.framerate)
-args.stride                         = int(4)
+args.batch_size                     = int(16)
+
+# Data parameters
+# args.framerate                      = int(8)
+args.num_frames                     = int(32)
+# args.clip_duration                  = float(args.num_frames/args.framerate)
+# args.clip_duration                  = 1
+args.stride                         = int(2)
 args.num_classes                    = int(6)
 args.shuffle                        = True
 
 # Required Parameters
-args.data_root                      = 'D:\\zhaon\\Datasets\\Video_JPG_Stack'
+# args.data_root                      = 'D:\\zhaon\\Datasets\\Video_JPG_Stack'
+args.data_root                      = r'C:\Users\zhaon\Documents\Video_JPG_Stack'
 # args.data_root                      = 'D:\\zhaon\\Datasets\\Video Segments'
 # args.vidclip_root                   = 'D:\\zhaon\\Datasets\\torch_VideoClips'
-args.arch                           = "mvit"
-args.annotation_filename            = 'annotation_16x4.txt'
+args.arch                           = "slowfast"
+args.annotation_filename            = 'annotation_32x2.txt'
 
 # Pytorch Lightning Parameters
 args.accelerator                    = 'gpu'
-args.devices                        = 1
+args.devices                        = -1
 # args.strategy                       = 'ddp'
-args.max_epochs                     = 14
+args.max_epochs                     = 50
 args.callbacks                      = [LearningRateMonitor(), GRASSP_classes.GRASSPValidationCallback()]
 args.replace_sampler_ddp            = True
 args.precision                      = 16
 args.log_root                       = 'Logs'
-args.logger                         = TensorBoardLogger(args.log_root, name=f"{args.arch}_model")
+args.logger                         = TensorBoardLogger(args.log_root, name=f"{args.arch}_{date}")
 args.log_every_n_steps              = 10
 
 # Model-specific Parameters
 args.transfer_learning              = True
-args.pretrained_state_dict          = 'Models/SlowFast_new.pyth'
+args.pretrained_state_dict          = 'Models/slowfast/SlowFast_new.pyth'
 args.slowfast_alpha                 = int(4)
 args.slowfast_beta                  = float(1/8)
+args.slowfast_fusion_conv_channel_ratio = int(2)
+args.slowfast_fusion_kernel_size        = int(7)
 args.mvit_embed_dim_mul                  = [[1, 2.0], [3, 2.0], [14, 2.0]]
 args.mvit_atten_head_mul                 = [[1, 2.0], [3, 2.0], [14, 2.0]]
 args.mvit_pool_q_stride_size             = [[1, 1, 2, 2], [3, 1, 2, 2], [14, 1, 2, 2]]
@@ -94,9 +100,10 @@ args.enable_checkpointing           = False
 def main():
     setup_logger()
 
-    for subdir in os.listdir(args.data_root):
-    # if True: # Dont want to unindent im lazy
-        args.val_sub = subdir
+    # for subdir in os.listdir(args.data_root):
+    if True: # Dont want to unindent im lazy
+        # args.val_sub = subdir
+        args.val_sub = 'Sub8'
         args.results_path = f'Results/{args.arch}_{date}'
         args.logger                         = TensorBoardLogger(args.log_root, 
                                                                 name=f"{args.arch}_model",
