@@ -1,5 +1,3 @@
-from json import decoder
-import string
 from .video_dataset import VideoFrameDataset, ImglistToTensor, VideoRecord
 from .tools import gen_annotations
 import pytorch_lightning
@@ -36,15 +34,18 @@ from PIL import Image
 import json
 import os, gzip
 
+def dumper(obj):
+    try:
+        return obj.toJSON()
+    except:
+        return str(obj)
+
 class GRASSPValidationCallback(Callback):
-    #def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+    def __init__(self) -> None:
+        super().__init__()
+    # def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
     #    import pdb; pdb.set_trace()
     #    print("Validation batch is starting")
-    def dumper(obj):
-        try:
-            return obj.toJSON()
-        except:
-            return obj.__dict__
 
     def on_validation_start(self, trainer, pl_module):
         #import pdb; pdb.set_trace()
@@ -71,14 +72,12 @@ class GRASSPValidationCallback(Callback):
             'args':vars(pl_module.args),
         }
         with open(savefile, 'w') as f:
-            json.dump(metrics, f, default=self.dumper, indent=4)
+            json.dump(metrics, f, default=dumper, indent=4)
         print(f'Saved raw results to {str(savefile)}')
     
     def on_fit_end(self, trainer, pl_module):
         pl_module.logger.save()
         
-
-
 class GRASSPDataModule(pytorch_lightning.LightningDataModule):
     """
     This LightningDataModule implementation constructs a PyTorchVideo Kinetics dataset for both

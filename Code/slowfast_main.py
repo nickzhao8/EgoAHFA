@@ -3,7 +3,7 @@ from PytorchVideoTrain import VideoClassificationLightningModule, setup_logger
 import argparse
 import pytorch_lightning
 from pytorch_lightning.profiler import AdvancedProfiler, PyTorchProfiler
-from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 import os
 from pathlib import Path
@@ -41,8 +41,8 @@ args.video_max_short_side_scale     = int(320)
 args.video_horizontal_flip_p        = float(0.5)
 
 # Trainer Parameters
-args.workers                        = int(4)
-args.batch_size                     = int(16)
+args.workers                        = int(0)
+args.batch_size                     = int(8)
 
 # Data parameters
 # args.framerate                      = int(8)
@@ -65,15 +65,15 @@ args.annotation_filename            = 'annotation_32x2.txt'
 args.accelerator                    = 'gpu'
 args.devices                        = -1
 # args.strategy                       = 'ddp'
-args.max_epochs                     = 50
-args.callbacks                      = [LearningRateMonitor(), GRASSP_classes.GRASSPValidationCallback()]
+args.max_epochs                     = 15
 args.replace_sampler_ddp            = True
 args.precision                      = 16
 args.log_root                       = 'Logs'
-args.logger                         = TensorBoardLogger(args.log_root, name=f"{args.arch}_{date}")
-args.log_every_n_steps              = 10
+# args.logger                         = TensorBoardLogger(args.log_root, name=f"{args.arch}_{date}")
+args.log_every_n_steps              = 50
 
 # Model-specific Parameters
+args.ordinal                        = True
 args.transfer_learning              = True
 args.pretrained_state_dict          = 'Models/slowfast/SlowFast_new.pyth'
 args.slowfast_alpha                 = int(4)
@@ -87,10 +87,10 @@ args.mvit_pool_kv_stride_adaptive        = [1, 8, 8]
 args.mvit_pool_kvq_kernel                = [3, 3, 3]
 
 # Debugging Parameters
-# args.fast_dev_run                   = 100
-# args.limit_train_batches            = 1000
+# args.fast_dev_run                   = 1
+# args.limit_train_batches            = 100
 # args.limit_val_batches              = 1000
-args.enable_checkpointing           = False
+# args.enable_checkpointing           = True
 # profiler = AdvancedProfiler(dirpath='Debug',filename='profilereport_'+date)
 # profiler = PyTorchProfiler(dirpath='Debug',filename='profilereport_'+date)
 # args.profiler                       = profiler
@@ -101,13 +101,17 @@ def main():
     setup_logger()
 
     # for subdir in os.listdir(args.data_root):
-    if True: # Dont want to unindent im lazy
-        # args.val_sub = subdir
-        args.val_sub = 'Sub8'
-        args.results_path = f'Results/{args.arch}_{date}'
+    # if True: # Dont want to unindent im lazy
+    subdirs = ['Sub3', 'Sub6', 'Sub7' 'Sub12', 'Sub15' 'Sub17']
+    # subdirs = ['Sub2', 'Sub3', 'Sub7', 'Sub9', 'Sub13', 'Sub16']
+    for subdir in subdirs:
+        args.val_sub = subdir
+        # args.val_sub = 'Sub8'
+        archtype = 'transfer' if args.transfer_learning else 'scratch'
+        args.results_path = f'Results/{args.arch}_{archtype}_{date}'
         args.logger                         = TensorBoardLogger(args.log_root, 
-                                                                name=f"{args.arch}_model",
-                                                                version=args.val_sub)
+                                                                name=f"{args.arch}_{archtype}_model",
+                                                                version=f"{args.val_sub}_{date}")
         # DEBUG: start at later sub
         # skipsubs = ['Sub1','Sub10','Sub11','Sub12','Sub13','Sub14','Sub15']
         # if subdir in skipsubs: continue
@@ -116,11 +120,15 @@ def main():
         # datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
         classification_module = VideoClassificationLightningModule(args)
         trainer = pytorch_lightning.Trainer.from_argparse_args(args)
+        # For some reason including callbacks in args causes a multiprocessing error ¯\_(ツ)_/¯
+        trainer.callbacks.extend([LearningRateMonitor(), 
+                                  GRASSP_classes.GRASSPValidationCallback(),
+                                  EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=3)])
 
         trainer.fit(classification_module, datamodule)
 
         # Save checkpoint
-        model_dir = Path('Models', f'{args.arch}_{date}')
+        model_dir = Path('Models', f'{args.arch}_{archtype}_{date}')
         os.makedirs(model_dir, exist_ok=True)
         model_path = Path(model_dir, f"{args.arch}_{args.val_sub}.ckpt")
         trainer.save_checkpoint(model_path)
