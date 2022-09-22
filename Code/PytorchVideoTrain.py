@@ -57,11 +57,19 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             )
             self.batch_key = "video"
             if self.args.transfer_learning:
+                # Load pre-trained state dict
                 state_dict = torch.load(self.args.pretrained_state_dict)
                 self.model.load_state_dict(state_dict, strict=False)
-                # Freeze model
+                # Save pointers to layers to unfreeze
+                block4_pathway0_res_block2 = self.model.blocks[4].multipathway_blocks[0].res_blocks[2]
+                block4_pathway1_res_block2 = self.model.blocks[4].multipathway_blocks[1].res_blocks[2]
+                # Freeze params
                 for param in self.model.parameters():
                     param.requires_grad = False
+                # Unfreeze saved layers
+                for param in block4_pathway0_res_block2.parameters(): param.requires_grad = True
+                for param in block4_pathway1_res_block2.parameters(): param.requires_grad = True
+                # Construct last fc layer
                 num_features = self.model.blocks[6].proj.in_features
                 self.model.blocks[6].proj = torch.nn.Linear(num_features, self.args.num_classes)
         elif self.args.arch == 'mvit':
@@ -102,16 +110,38 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
 
     def forward(self, x):
         return self.model(x)
+    
+    def ordinal_prediction(self, preds):
+        # Convert ordinal encoding back to class labels
+        thresholds = [x if x < 0.5 else 0.5 for x in preds[:,0].tolist()]
+        cross_thresh = torch.zeros_like(preds)
+        for i, threshold in enumerate(thresholds):
+            cross_thresh[i,:] = preds[i,:] >= threshold
+        return (cross_thresh.cumprod(axis=1).sum(axis=1) - 1).int()
 
+    def ordinal_loss(self, preds, targets):
+        # Modify target with ordinal encoding
+        ordinal_target = torch.zeros_like(preds)
+        for i, target in enumerate(targets):
+            ordinal_target[i, 0:target+1] = 1
+        return F.mse_loss(preds, ordinal_target, reduction='mean')
+        
     def training_step(self, batch, batch_idx):
         x = batch[self.batch_key]
         # import pdb; pdb.set_trace()
         y_hat = self.model(x)
-        loss = F.cross_entropy(y_hat, batch["label"])
+        if self.args.ordinal:   
+            loss = self.ordinal_loss(y_hat, batch["label"])
+        else:                   
+            loss = F.cross_entropy(y_hat, batch["label"])
         if ((batch_idx % self.args.log_every_n_steps) == 0):
             preds = F.softmax(y_hat, dim=-1)
-            acc = self.train_accuracy(preds, batch["label"])
-            mae = self.train_MAE(torch.argmax(preds, dim=1), batch["label"])
+            if self.args.ordinal:
+                pred_labels = self.ordinal_prediction(preds)
+            else:
+                pred_labels = torch.argmax(preds, dim=1)
+            acc = self.train_accuracy(pred_labels, batch["label"])
+            mae = self.train_MAE(pred_labels, batch["label"])
             self.train_losses.append(loss)
             self.train_accs.append(acc)
             self.train_maes.append(mae)
@@ -126,21 +156,25 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
     def validation_step(self, batch, batch_idx):
         x = batch[self.batch_key]
         y_hat = self.model(x)
-        loss = F.cross_entropy(y_hat, batch["label"])
         preds = F.softmax(y_hat, dim=-1)
-        pred_labels = torch.argmax(preds, dim=1)
+        if self.args.ordinal:   
+            loss = self.ordinal_loss(y_hat, batch["label"])
+            pred_labels = self.ordinal_prediction(preds)
+        else:                  
+            loss = F.cross_entropy(y_hat, batch["label"])
+            pred_labels = torch.argmax(preds, dim=1)
         target = batch["label"]
         # Calculate metrics
-        acc = self.val_accuracy(preds, target)
+        acc = self.val_accuracy(pred_labels, target)
         MAE = self.val_MAE(pred_labels, target)
         MSE = self.val_MSE(pred_labels, target)
         RMSE = self.val_RMSE(pred_labels, target)
-        microPrecision = self.val_microPrecision(preds, target)
-        macroPrecision = self.val_macroPrecision(preds, target)
-        microRecall = self.val_microRecall(preds, target)
-        macroRecall = self.val_macroRecall(preds, target)
-        microF1 = self.val_microF1(preds, target)
-        macroF1 = self.val_macroF1(preds, target)
+        microPrecision = self.val_microPrecision(pred_labels, target)
+        macroPrecision = self.val_macroPrecision(pred_labels, target)
+        microRecall = self.val_microRecall(pred_labels, target)
+        macroRecall = self.val_macroRecall(pred_labels, target)
+        microF1 = self.val_microF1(pred_labels, target)
+        macroF1 = self.val_macroF1(pred_labels, target)
         # Log metrics
         self.log("val_loss", loss)
         self.log(
@@ -159,10 +193,9 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         }
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
         # Custom preds, target, tasks Logging
-        preds = self.softmax_index(preds.tolist())
-        self.val_filenames = self.record_filenames(self.val_filenames, preds, target.tolist(), batch)
-        self.val_tasks = self.record_tasks(self.val_tasks, preds, target.tolist(), batch['video_name'])
-        self.val_preds.append(preds)
+        self.val_filenames = self.record_filenames(self.val_filenames, pred_labels, target.tolist(), batch)
+        self.val_tasks = self.record_tasks(self.val_tasks, pred_labels, target.tolist(), batch['video_name'])
+        self.val_preds.append(pred_labels)
         self.val_loss.append(loss.tolist())
         self.val_target.append(target.tolist())
         return loss
@@ -221,6 +254,8 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 optimizer, self.args.max_epochs, last_epoch=-1
             )
         return [optimizer], [scheduler]
+    
+    # def ordinal
 
 def setup_logger():
     ch = logging.StreamHandler()
