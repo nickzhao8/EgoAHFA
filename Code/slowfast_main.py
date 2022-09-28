@@ -21,13 +21,12 @@ date = datetime.now().strftime("%m_%d_%H")
 parser  =  pytorch_lightning.Trainer.add_argparse_args(parser)
 
 args  =  parser.parse_args()
-args.job_name  =  "ptv_video_classification"
 
 # Default Parameters
-args.on_cluster                     = False
+args.on_cluster                     = True
 args.job_name                       = "ptv_video_classification"
 args.working_directory              = "."
-args.partition                      = "dev"
+args.partition                      = "gpu"
 args.lr                             = float(1.6e-3)
 args.momentum                       = float(0.9)
 args.weight_decay                   = float(5e-2)
@@ -41,7 +40,7 @@ args.video_max_short_side_scale     = int(320)
 args.video_horizontal_flip_p        = float(0.5)
 
 # Trainer Parameters
-args.workers                        = int(4)
+args.workers                        = int(16)
 args.batch_size                     = int(8)
 
 # Data parameters
@@ -55,7 +54,7 @@ args.shuffle                        = True
 
 # Required Parameters
 # args.data_root                      = 'D:\\zhaon\\Datasets\\Video_JPG_Stack'
-args.data_root                      = r'C:\Users\zhaon\Documents\Video_JPG_Stack'
+args.data_root                      = '/cluster/home/t63164uhn/Data/Video_JPG_Stack'
 # args.data_root                      = 'D:\\zhaon\\Datasets\\Video Segments'
 # args.vidclip_root                   = 'D:\\zhaon\\Datasets\\torch_VideoClips'
 args.arch                           = "slowfast"
@@ -63,9 +62,9 @@ args.annotation_filename            = 'annotation_32x2.txt'
 
 # Pytorch Lightning Parameters
 args.accelerator                    = 'gpu'
-args.devices                        = -1
-# args.strategy                       = 'ddp'
-# args.num_nodes                      = 1
+args.devices                        = 4
+args.strategy                       = 'ddp'
+args.num_nodes                      = 1
 args.max_epochs                     = 15
 args.replace_sampler_ddp            = False
 args.precision                      = 16
@@ -74,8 +73,8 @@ args.log_root                       = 'Logs'
 args.log_every_n_steps              = 20
 
 # Model-specific Parameters
-args.ordinal                        = True
-args.transfer_learning              = True
+args.ordinal                        = False
+args.transfer_learning              = False
 args.pretrained_state_dict          = 'Models/slowfast/SlowFast_new.pyth'
 args.slowfast_alpha                 = int(4)
 args.slowfast_beta                  = float(1/8)
@@ -91,7 +90,7 @@ args.mvit_pool_kvq_kernel                = [3, 3, 3]
 # args.fast_dev_run                   = 1
 # args.limit_train_batches            = 100
 # args.limit_val_batches              = 1000
-# args.enable_checkpointing           = True
+args.enable_checkpointing           = True
 # profiler = AdvancedProfiler(dirpath='Debug',filename='profilereport_'+date)
 # profiler = PyTorchProfiler(dirpath='Debug',filename='profilereport_'+date)
 # args.profiler                       = profiler
@@ -101,11 +100,11 @@ args.mvit_pool_kvq_kernel                = [3, 3, 3]
 def main():
     setup_logger()
 
-    # for subdir in os.listdir(args.data_root):
+    for subdir in os.listdir(args.data_root):
     # if True: # Dont want to unindent im lazy
-    subdirs = ['Sub3', 'Sub6', 'Sub7', 'Sub12', 'Sub15', 'Sub17']
+    # subdirs = ['Sub3', 'Sub6', 'Sub7', 'Sub12', 'Sub15', 'Sub17']
     # subdirs = ['Sub2', 'Sub3', 'Sub7', 'Sub9', 'Sub13', 'Sub16']
-    for subdir in subdirs:
+    # for subdir in subdirs:
         args.val_sub = subdir
         # args.val_sub = 'Sub8'
         archtype = 'transfer' if args.transfer_learning else 'scratch'
@@ -126,11 +125,11 @@ def main():
                                   GRASSP_classes.GRASSPValidationCallback(),
                                   EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=5)])
 
-        # trainer.fit(classification_module, datamodule)
+        trainer.fit(classification_module, datamodule)
         # == Resume from checkpoint ==
-        ckpt_root = Path('Models','slowfast_transfer_09_23_16')
-        ckpt_path = Path(ckpt_root, next(x for x in os.listdir(ckpt_root) if f'{subdir}.ckpt' in x))
-        trainer.fit(classification_module, datamodule, ckpt_path=ckpt_path)
+#        ckpt_root = Path('Models','slowfast_transfer_09_23_16')
+#        ckpt_path = Path(ckpt_root, next(x for x in os.listdir(ckpt_root) if f'{subdir}.ckpt' in x))
+#        trainer.fit(classification_module, datamodule, ckpt_path=ckpt_path)
 
         # Save checkpoint
         model_dir = Path('Models', f'{args.arch}_{archtype}_{date}')

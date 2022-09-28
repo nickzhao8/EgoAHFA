@@ -1,3 +1,5 @@
+from json import decoder
+import string
 from .video_dataset import VideoFrameDataset, ImglistToTensor, VideoRecord
 from .tools import gen_annotations
 import pytorch_lightning
@@ -34,16 +36,8 @@ from PIL import Image
 import json
 import os, gzip
 
-def dumper(obj):
-    try:
-        return obj.toJSON()
-    except:
-        return str(obj)
-
 class GRASSPValidationCallback(Callback):
-    def __init__(self) -> None:
-        super().__init__()
-    # def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+    #def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
     #    import pdb; pdb.set_trace()
     #    print("Validation batch is starting")
 
@@ -52,7 +46,6 @@ class GRASSPValidationCallback(Callback):
         pl_module.val_preds = []
         pl_module.val_target = []
         pl_module.val_tasks = {}
-        pl_module.val_filenames = {}
         pl_module.val_loss = []
 
         print("STARTING VALIDATION, RESETTING METRICS")
@@ -67,17 +60,17 @@ class GRASSPValidationCallback(Callback):
             "preds":pl_module.val_preds,
             "target":pl_module.val_target,
             "loss":pl_module.val_loss,
-            "tasks":pl_module.val_tasks,
-            "filenames":pl_module.val_filenames,
-            'args':vars(pl_module.args),
+            "tasks":pl_module.val_tasks
         }
         with open(savefile, 'w') as f:
-            json.dump(metrics, f, default=dumper, indent=4)
+            json.dump(metrics, f, indent=4)
         print(f'Saved raw results to {str(savefile)}')
     
     def on_fit_end(self, trainer, pl_module):
         pl_module.logger.save()
         
+
+
 class GRASSPDataModule(pytorch_lightning.LightningDataModule):
     """
     This LightningDataModule implementation constructs a PyTorchVideo Kinetics dataset for both
@@ -308,7 +301,7 @@ class GRASSPFastDataModule(GRASSPDataModule):
 
         return torch.utils.data.DataLoader(
             val_dataset,
-            shuffle=False,
+            shuffle=self.args.shuffle,
             batch_size=self.args.batch_size,
             num_workers=self.args.workers,
             pin_memory=True,
@@ -387,7 +380,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
 
         return torch.utils.data.DataLoader(
             val_dataset,
-            shuffle=False,
+            shuffle=self.args.shuffle,
             batch_size=self.args.batch_size,
             num_workers=self.args.workers,
             pin_memory=True,
