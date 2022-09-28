@@ -173,7 +173,7 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
         # labeled_video_paths = []
         datasets = []
         for subdir in subdirs:
-            if str(subdir).split('\\')[-1].lower() == self.args.val_sub.lower():
+            if subdir.name.lower() == self.args.val_sub.lower():
                 skipped_val = True
                 continue
             subdir = Path(self.args.data_root,subdir).resolve()
@@ -214,7 +214,7 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
         subdirs = Path(self.args.data_root).glob('*')
         #print(f"dataroot = {Path(self.args.data_root)}, valsub = {self.args.val_sub}")
         for subdir in subdirs:
-            if str(subdir).split('\\')[-1].lower() == self.args.val_sub.lower():
+            if subdir.name.lower() == self.args.val_sub.lower():
                 made_val = True
                 self.val_dataset = pytorchvideo.data.labeled_video_dataset(
                     data_path=subdir.resolve(),
@@ -253,7 +253,7 @@ class GRASSPFastDataModule(GRASSPDataModule):
         # labeled_video_paths = []
         datasets = []
         for subdir in subdirs:
-            subname = str(subdir).split('\\')[-1]
+            subname = subdir.name
             videoclip_file = Path(self.args.vidclip_root, f'{subname}_VideoClip.gz')
             if subname.lower() == self.args.val_sub.lower():
                 skipped_val = True
@@ -291,7 +291,7 @@ class GRASSPFastDataModule(GRASSPDataModule):
         subdirs = Path(self.args.data_root).glob('*')
         #print(f"dataroot = {Path(self.args.data_root)}, valsub = {self.args.val_sub}")
         for subdir in subdirs:
-            subname = str(subdir).split('\\')[-1]
+            subname = subdir.name
             videoclip_file = Path(self.args.vidclip_root, f'{subname}_VideoClip.gz')
             if subname.lower() == self.args.val_sub.lower():
                 made_val = True
@@ -335,7 +335,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
         # labeled_video_paths = []
         datasets = []
         for subdir in subdirs:
-            subname = str(subdir).split('\\')[-1]
+            subname = subdir.name
             annotation_file = Path(subdir, self.args.annotation_filename)
             if subname.lower() == self.args.val_sub.lower():
                 skipped_val = True
@@ -371,7 +371,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
         subdirs = Path(self.args.data_root).glob('*')
         #print(f"dataroot = {Path(self.args.data_root)}, valsub = {self.args.val_sub}")
         for subdir in subdirs:
-            subname = str(subdir).split('\\')[-1]
+            subname = subdir.name
             annotation_file = Path(subdir, self.args.annotation_filename)
             if subname.lower() == self.args.val_sub.lower():
                 made_val = True
