@@ -41,7 +41,7 @@ args.video_max_short_side_scale     = int(320)
 args.video_horizontal_flip_p        = float(0.5)
 
 # Trainer Parameters
-args.workers                        = int(0)
+args.workers                        = int(4)
 args.batch_size                     = int(8)
 
 # Data parameters
@@ -65,12 +65,13 @@ args.annotation_filename            = 'annotation_32x2.txt'
 args.accelerator                    = 'gpu'
 args.devices                        = -1
 # args.strategy                       = 'ddp'
+# args.num_nodes                      = 1
 args.max_epochs                     = 15
-args.replace_sampler_ddp            = True
+args.replace_sampler_ddp            = False
 args.precision                      = 16
 args.log_root                       = 'Logs'
 # args.logger                         = TensorBoardLogger(args.log_root, name=f"{args.arch}_{date}")
-args.log_every_n_steps              = 50
+args.log_every_n_steps              = 20
 
 # Model-specific Parameters
 args.ordinal                        = True
@@ -102,7 +103,7 @@ def main():
 
     # for subdir in os.listdir(args.data_root):
     # if True: # Dont want to unindent im lazy
-    subdirs = ['Sub3', 'Sub6', 'Sub7' 'Sub12', 'Sub15' 'Sub17']
+    subdirs = ['Sub3', 'Sub6', 'Sub7', 'Sub12', 'Sub15', 'Sub17']
     # subdirs = ['Sub2', 'Sub3', 'Sub7', 'Sub9', 'Sub13', 'Sub16']
     for subdir in subdirs:
         args.val_sub = subdir
@@ -110,7 +111,7 @@ def main():
         archtype = 'transfer' if args.transfer_learning else 'scratch'
         args.results_path = f'Results/{args.arch}_{archtype}_{date}'
         args.logger                         = TensorBoardLogger(args.log_root, 
-                                                                name=f"{args.arch}_{archtype}_model",
+                                                                name=f"{args.arch}_{archtype}_{date}",
                                                                 version=f"{args.val_sub}_{date}")
         # DEBUG: start at later sub
         # skipsubs = ['Sub1','Sub10','Sub11','Sub12','Sub13','Sub14','Sub15']
@@ -123,9 +124,13 @@ def main():
         # For some reason including callbacks in args causes a multiprocessing error ¯\_(ツ)_/¯
         trainer.callbacks.extend([LearningRateMonitor(), 
                                   GRASSP_classes.GRASSPValidationCallback(),
-                                  EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=3)])
+                                  EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=5)])
 
-        trainer.fit(classification_module, datamodule)
+        # trainer.fit(classification_module, datamodule)
+        # == Resume from checkpoint ==
+        ckpt_root = Path('Models','slowfast_transfer_09_23_16')
+        ckpt_path = Path(ckpt_root, next(x for x in os.listdir(ckpt_root) if f'{subdir}.ckpt' in x))
+        trainer.fit(classification_module, datamodule, ckpt_path=ckpt_path)
 
         # Save checkpoint
         model_dir = Path('Models', f'{args.arch}_{archtype}_{date}')

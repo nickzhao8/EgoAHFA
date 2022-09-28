@@ -113,18 +113,19 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
     
     def ordinal_prediction(self, preds):
         # Convert ordinal encoding back to class labels
-        thresholds = [x if x < 0.5 else 0.5 for x in preds[:,0].tolist()]
+        ooms = [torch.floor(torch.log10(x)) for x in preds[:,0]]
         cross_thresh = torch.zeros_like(preds)
-        for i, threshold in enumerate(thresholds):
-            cross_thresh[i,:] = preds[i,:] >= threshold
+        for i, oom in enumerate(ooms):
+            cross_thresh[i,:] = torch.floor(torch.log10(preds[i,:])) >= oom
         return (cross_thresh.cumprod(axis=1).sum(axis=1) - 1).int()
 
     def ordinal_loss(self, preds, targets):
+        preds = F.softmax(preds, dim=-1)
         # Modify target with ordinal encoding
         ordinal_target = torch.zeros_like(preds)
         for i, target in enumerate(targets):
             ordinal_target[i, 0:target+1] = 1
-        return F.mse_loss(preds, ordinal_target, reduction='mean')
+        return F.mse_loss(preds, ordinal_target, reduction='sum')
         
     def training_step(self, batch, batch_idx):
         x = batch[self.batch_key]
