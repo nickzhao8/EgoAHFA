@@ -102,8 +102,9 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         that shuffling is done correctly
         """
         epoch = self.trainer.current_epoch
-        if self.trainer._accelerator_connector.is_distributed:
-           self.trainer.datamodule.train_dataset.video_sampler.set_epoch(epoch)
+        # Below is DEPRECATED - new datasets dont use video_sampler. 
+        # if self.trainer._accelerator_connector.is_distributed:
+        #    self.trainer.datamodule.train_dataset.video_sampler.set_epoch(epoch)
         self.train_losses = []
         self.train_accs = []
         self.train_maes = []
