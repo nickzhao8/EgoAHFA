@@ -328,7 +328,6 @@ class GRASSPFrameDataModule(GRASSPDataModule):
         """
         Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
         """
-        # video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
         train_transform = self._make_transforms(mode="train")
         skipped_val = False
         subdirs = Path(self.args.data_root).glob('*')
@@ -352,10 +351,14 @@ class GRASSPFrameDataModule(GRASSPDataModule):
             datasets.append(dataset) 
 
         assert skipped_val == True, "Invalid val_sub; val_sub not found."
-        self.train_dataset = ConcatDataset(datasets)
+        train_dataset = ConcatDataset(datasets)
+        # Video sampler (for distributed only)
+        if self.trainer._accelerator_connector.is_distributed : self.train_sampler = DistributedSampler(train_dataset)
+        elif self.args.shuffle: self.train_sampler = RandomSampler(train_dataset)
+        else:                   self.train_sampler = None
         return torch.utils.data.DataLoader(
-            self.train_dataset,
-            shuffle=self.args.shuffle,
+            train_dataset,
+            sampler=self.train_sampler,
             batch_size=self.args.batch_size,
             num_workers=self.args.workers,
             pin_memory=True,
@@ -365,7 +368,6 @@ class GRASSPFrameDataModule(GRASSPDataModule):
         """
         Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
         """
-        # video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
         val_transform = self._make_transforms(mode="val")
         made_val = False
         subdirs = Path(self.args.data_root).glob('*')
@@ -385,9 +387,10 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                 )
         assert made_val == True, "Invalid val_sub; val_sub not found."
 
+        val_sampler = DistributedSampler(val_dataset) if self.trainer._accelerator_connector.is_distributed else None
         return torch.utils.data.DataLoader(
             val_dataset,
-            shuffle=False,
+            sampler=val_sampler,
             batch_size=self.args.batch_size,
             num_workers=self.args.workers,
             pin_memory=True,
