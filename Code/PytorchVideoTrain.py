@@ -4,6 +4,7 @@ import argparse
 import itertools
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Iterable
 import json
@@ -209,7 +210,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
     
     def record_tasks(self, tasks, preds, target, video_names):
         for i in range(len(target)): # Iterate through batch
-            video_name = video_names[i].split('_')[1]
+            video_name = re.split('\d',video_names[i])[-2][1:-1]
             if video_name in tasks:
                 tasks[video_name]['preds'].append(preds[i])
                 tasks[video_name]['target'].append(target[i])
