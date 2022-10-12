@@ -71,7 +71,7 @@ class GRASSPValidationCallback(Callback):
             "filenames":pl_module.val_filenames,
             'args':vars(pl_module.args),
         }
-        with open(savefile, 'w') as f:
+        with open(savefile, 'a') as f:
             json.dump(metrics, f, default=dumper, indent=4)
         print(f'Saved raw results to {str(savefile)}')
     
