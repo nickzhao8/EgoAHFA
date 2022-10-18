@@ -36,6 +36,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         self.val_microF1 = torchmetrics.F1Score(average='micro', num_classes=self.args.num_classes)
         self.val_macroF1 = torchmetrics.F1Score(average='macro', num_classes=self.args.num_classes)
 
+        self.sanity_check = False
         self.val_preds = []
         self.val_target = []
         self.val_loss = []
@@ -198,7 +199,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         # Custom preds, target, tasks Logging
         self.val_filenames = self.record_filenames(self.val_filenames, pred_labels, target.tolist(), batch)
         self.val_tasks = self.record_tasks(self.val_tasks, pred_labels, target.tolist(), batch['video_name'])
-        self.val_preds.append(pred_labels)
+        self.val_preds.append(pred_labels.tolist())
         self.val_loss.append(loss.tolist())
         self.val_target.append(target.tolist())
         return loss
@@ -212,11 +213,11 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         for i in range(len(target)): # Iterate through batch
             video_name = re.split('\d',video_names[i])[-2][1:-1]
             if video_name in tasks:
-                tasks[video_name]['preds'].append(preds[i])
+                tasks[video_name]['preds'].append(preds[i].tolist())
                 tasks[video_name]['target'].append(target[i])
             else:
                 tasks[video_name] = {}
-                tasks[video_name]['preds'] = [preds[i]]
+                tasks[video_name]['preds'] = [preds[i].tolist()]
                 tasks[video_name]['target'] = [target[i]]
         return tasks
 
@@ -226,12 +227,12 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         for i in range(len(target)): # Iterate through batch
             video_name = video_names[i]
             if video_name in filenames:
-                filenames[video_name]['preds'].append(preds[i])
+                filenames[video_name]['preds'].append(preds[i].tolist())
                 filenames[video_name]['target'].append(target[i])
                 filenames[video_name]['clip_index'].append(clip_index[i].item())
             else:
                 filenames[video_name] = {}
-                filenames[video_name]['preds'] = [preds[i]]
+                filenames[video_name]['preds'] = [preds[i].tolist()]
                 filenames[video_name]['target'] = [target[i]]
                 filenames[video_name]['clip_index'] = [clip_index[i].item()]
         return filenames

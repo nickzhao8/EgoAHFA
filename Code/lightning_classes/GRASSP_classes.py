@@ -46,6 +46,10 @@ class GRASSPValidationCallback(Callback):
     # def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
     #    import pdb; pdb.set_trace()
     #    print("Validation batch is starting")
+    def on_sanity_check_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        pl_module.sanity_check = True
+    def on_sanity_check_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        pl_module.sanity_check = False
 
     def on_validation_start(self, trainer, pl_module):
         #import pdb; pdb.set_trace()
@@ -58,22 +62,23 @@ class GRASSPValidationCallback(Callback):
         print("STARTING VALIDATION, RESETTING METRICS")
     
     def on_validation_end(self, trainer, pl_module):
-        args = pl_module.args
-        epoch = pl_module.trainer.current_epoch
-        savepath = Path(args.results_path, "Raw")
-        os.makedirs(savepath, exist_ok=True)
-        savefile = Path(savepath, f"{args.val_sub}_epoch{epoch}_raw.json")
-        metrics = {
-            "preds":pl_module.val_preds,
-            "target":pl_module.val_target,
-            "loss":pl_module.val_loss,
-            "tasks":pl_module.val_tasks,
-            "filenames":pl_module.val_filenames,
-            'args':vars(pl_module.args),
-        }
-        with open(savefile, 'w') as f:
-            json.dump(metrics, f, default=dumper, indent=4)
-        print(f'Saved raw results to {str(savefile)}')
+        if not pl_module.sanity_check:
+            args = pl_module.args
+            epoch = pl_module.trainer.current_epoch
+            savepath = Path(args.results_path, "Raw")
+            os.makedirs(savepath, exist_ok=True)
+            savefile = Path(savepath, f"{args.val_sub}_epoch{epoch}_raw.json")
+            metrics = {
+                "preds":pl_module.val_preds,
+                "target":pl_module.val_target,
+                "loss":pl_module.val_loss,
+                "tasks":pl_module.val_tasks,
+                "filenames":pl_module.val_filenames,
+                'args':vars(pl_module.args),
+            }
+            with open(savefile, 'w') as f:
+                json.dump(metrics, f, default=dumper, indent=4)
+            print(f'Saved raw results to {str(savefile)}')
     
     def on_fit_end(self, trainer, pl_module):
         pl_module.logger.save()
