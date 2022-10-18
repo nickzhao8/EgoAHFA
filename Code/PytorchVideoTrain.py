@@ -36,6 +36,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         self.val_microF1 = torchmetrics.F1Score(average='micro', num_classes=self.args.num_classes)
         self.val_macroF1 = torchmetrics.F1Score(average='macro', num_classes=self.args.num_classes)
 
+        self.sanity_check = False
         self.val_preds = []
         self.val_target = []
         self.val_loss = []
