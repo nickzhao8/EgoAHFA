@@ -1,5 +1,5 @@
 from .video_dataset import VideoFrameDataset, ImglistToTensor, VideoRecord
-from .tools import gen_annotations
+from .tools import gen_annotations, gen_sparse_annotations
 import pytorch_lightning
 from pytorch_lightning.callbacks import Callback
 import pytorchvideo.data
@@ -76,7 +76,7 @@ class GRASSPValidationCallback(Callback):
                 "filenames":pl_module.val_filenames,
                 'args':vars(pl_module.args),
             }
-            with open(savefile, 'a') as f:
+            with open(savefile, 'w') as f:
                 json.dump(metrics, f, default=dumper, indent=4)
             print(f'Saved raw results to {str(savefile)}')
     
@@ -324,10 +324,15 @@ class GRASSPFrameDataModule(GRASSPDataModule):
         self.args = args
         subdir = next(iter(Path(self.args.data_root).glob('*')))
         if not os.path.exists(Path(subdir, self.args.annotation_filename)):
-            gen_annotations(dataset_root = self.args.data_root,
-                            num_frames = self.args.num_frames,
-                            temporal_stride = self.args.stride,
-                            annotation_filename = self.args.annotation_filename)
+            if args.sparse_temporal_sampling:
+                gen_sparse_annotations(dataset_root = self.args.data_root,
+                                       annotation_source_filename = self.args.annotation_source,
+                                       annotation_filename  = self.args.annotation_filename)
+            else:
+                gen_annotations(dataset_root = self.args.data_root,
+                                num_frames = self.args.num_frames,
+                                temporal_stride = self.args.stride,
+                                annotation_filename = self.args.annotation_filename)
         super().__init__(args)
     def train_dataloader(self, **kwargs):
         """
@@ -345,14 +350,24 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                 skipped_val = True
                 continue
             subdir = Path(self.args.data_root,subdir).resolve()
-            dataset = GRASSPFrameDataset(
-                root_path           = subdir,
-                annotationfile_path = annotation_file,
-                num_segments        = 1,
-                frames_per_segment  = self.args.num_frames,
-                imagefile_template  = '{:04d}.jpg',
-                transform           = train_transform,
-            )
+            if self.args.sparse_temporal_sampling:
+                dataset = GRASSPFrameDataset(
+                    root_path           = subdir,
+                    annotationfile_path = annotation_file,
+                    num_segments        = self.args.num_segments,
+                    frames_per_segment  = self.args.frames_per_segment,
+                    imagefile_template  = '{:04d}.jpg',
+                    transform           = train_transform,
+                )
+            else:
+                dataset = GRASSPFrameDataset(
+                    root_path           = subdir,
+                    annotationfile_path = annotation_file,
+                    num_segments        = 1,
+                    frames_per_segment  = self.args.num_frames,
+                    imagefile_template  = '{:04d}.jpg',
+                    transform           = train_transform,
+                )
             datasets.append(dataset) 
 
         assert skipped_val == True, "Invalid val_sub; val_sub not found."
@@ -382,14 +397,25 @@ class GRASSPFrameDataModule(GRASSPDataModule):
             annotation_file = Path(subdir, self.args.annotation_filename)
             if subname.lower() == self.args.val_sub.lower():
                 made_val = True
-                val_dataset = GRASSPFrameDataset(
-                    root_path           = subdir,
-                    annotationfile_path = annotation_file,
-                    num_segments        = 1,
-                    frames_per_segment  = self.args.num_frames,
-                    imagefile_template  = '{:04d}.jpg',
-                    transform           = val_transform,
-                )
+                if self.args.sparse_temporal_sampling:
+                    ## FIXME: val dataset has random start index selection for sparse sampling
+                    val_dataset = GRASSPFrameDataset(
+                        root_path           = subdir,
+                        annotationfile_path = annotation_file,
+                        num_segments        = self.args.num_segments,
+                        frames_per_segment  = self.args.frames_per_segment,
+                        imagefile_template  = '{:04d}.jpg',
+                        transform           = val_transform,
+                    )
+                else:
+                    val_dataset = GRASSPFrameDataset(
+                        root_path           = subdir,
+                        annotationfile_path = annotation_file,
+                        num_segments        = 1,
+                        frames_per_segment  = self.args.num_frames,
+                        imagefile_template  = '{:04d}.jpg',
+                        transform           = val_transform,
+                    )
         assert made_val == True, "Invalid val_sub; val_sub not found."
 
         val_sampler = DistributedSampler(val_dataset) if self.trainer._accelerator_connector.is_distributed else None
