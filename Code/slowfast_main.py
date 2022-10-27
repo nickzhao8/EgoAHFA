@@ -44,7 +44,7 @@ args.video_horizontal_flip_p        = float(0.5)
 args.workers                        = int(4)
 args.batch_size                     = int(8)
 
-# Data parameters
+### DATASET parameters ###
 # args.framerate                      = int(8)
 args.num_frames                     = int(32)
 # args.clip_duration                  = float(args.num_frames/args.framerate)
@@ -52,14 +52,21 @@ args.num_frames                     = int(32)
 args.stride                         = int(2)
 args.num_classes                    = int(6)
 args.shuffle                        = True
-
-# Required Parameters
 # args.data_root                      = 'D:\\zhaon\\Datasets\\Video_JPG_Stack'
-args.data_root                      = r'C:\Users\zhaon\Documents\Video_JPG_Stack'
+args.data_root                      = r'C:\Users\zhaon\Documents\GRASSP_JPG_FRAMES'
 # args.data_root                      = 'D:\\zhaon\\Datasets\\Video Segments'
 # args.vidclip_root                   = 'D:\\zhaon\\Datasets\\torch_VideoClips'
+args.sparse_temporal_sampling       = True
+args.num_segments                   = 4
+args.frames_per_segment             = 8
+args.num_frames                     = args.num_segments * args.frames_per_segment
+args.annotation_filename            = f'annotation_sparse_{args.num_segments}x{args.frames_per_segment}.txt'
+args.annotation_source              = 'annotation_32x2.txt'
+
+# args.annotation_filename            = 'annotation_32x2.txt'
+
+# Required Parameters
 args.arch                           = "slowfast"
-args.annotation_filename            = 'annotation_32x2.txt'
 
 # Pytorch Lightning Parameters
 args.accelerator                    = 'gpu'
@@ -74,8 +81,8 @@ args.log_root                       = 'Logs'
 args.log_every_n_steps              = 20
 
 # Model-specific Parameters
-args.ordinal                        = True
-args.transfer_learning              = True
+args.ordinal                        = False
+args.transfer_learning              = False
 args.pretrained_state_dict          = 'Models/slowfast/SlowFast_new.pyth'
 args.slowfast_alpha                 = int(4)
 args.slowfast_beta                  = float(1/8)
@@ -88,7 +95,7 @@ args.mvit_pool_kv_stride_adaptive        = [1, 8, 8]
 args.mvit_pool_kvq_kernel                = [3, 3, 3]
 
 # Debugging Parameters
-# args.fast_dev_run                   = 1
+# args.fast_dev_run                   = 10
 # args.limit_train_batches            = 100
 # args.limit_val_batches              = 1000
 # args.enable_checkpointing           = True
@@ -101,11 +108,11 @@ args.mvit_pool_kvq_kernel                = [3, 3, 3]
 def main():
     setup_logger()
 
-    # for subdir in os.listdir(args.data_root):
+    for subdir in os.listdir(args.data_root):
     # if True: # Dont want to unindent im lazy
-    subdirs = ['Sub3', 'Sub6', 'Sub7', 'Sub12', 'Sub15', 'Sub17']
+    # subdirs = ['Sub3', 'Sub6', 'Sub7', 'Sub12', 'Sub15', 'Sub17']
     # subdirs = ['Sub2', 'Sub3', 'Sub7', 'Sub9', 'Sub13', 'Sub16']
-    for subdir in subdirs:
+    # for subdir in subdirs:
         args.val_sub = subdir
         # args.val_sub = 'Sub8'
         archtype = 'transfer' if args.transfer_learning else 'scratch'
@@ -114,8 +121,8 @@ def main():
                                                                 name=f"{args.arch}_{archtype}_{date}",
                                                                 version=f"{args.val_sub}_{date}")
         # DEBUG: start at later sub
-        # skipsubs = ['Sub1','Sub10','Sub11','Sub12','Sub13','Sub14','Sub15']
-        # if subdir in skipsubs: continue
+        skipsubs = ['Sub1','Sub10','Sub11','Sub12']
+        if subdir in skipsubs: continue
 
         datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
         # datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
@@ -126,11 +133,11 @@ def main():
                                   GRASSP_classes.GRASSPValidationCallback(),
                                   EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=5)])
 
-        # trainer.fit(classification_module, datamodule)
+        trainer.fit(classification_module, datamodule)
         # == Resume from checkpoint ==
-        ckpt_root = Path('Models','slowfast_transfer_09_23_16')
-        ckpt_path = Path(ckpt_root, next(x for x in os.listdir(ckpt_root) if f'{subdir}.ckpt' in x))
-        trainer.fit(classification_module, datamodule, ckpt_path=ckpt_path)
+        # ckpt_root = Path('Models','slowfast_transfer_09_23_16')
+        # ckpt_path = Path(ckpt_root, next(x for x in os.listdir(ckpt_root) if f'{subdir}.ckpt' in x))
+        # trainer.fit(classification_module, datamodule, ckpt_path=ckpt_path)
 
         # Save checkpoint
         model_dir = Path('Models', f'{args.arch}_{archtype}_{date}')
