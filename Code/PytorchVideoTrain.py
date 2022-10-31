@@ -17,6 +17,8 @@ import torch.nn.functional as F
 from pytorch_lightning.callbacks import LearningRateMonitor
 import torchmetrics
 from lightning_classes.GRASSP_classes import GRASSPDataModule
+from coral_pytorch.losses import corn_loss
+from coral_pytorch.dataset import corn_label_from_logits
 
 
 class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
@@ -58,6 +60,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 slowfast_fusion_conv_stride=(self.args.slowfast_alpha, 1, 1), 
             )
             self.batch_key = "video"
+            ## Transfer Learning: freeze all layers except final one(s)
             if self.args.transfer_learning:
                 # Load pre-trained state dict
                 state_dict = torch.load(self.args.pretrained_state_dict)
@@ -74,6 +77,12 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 # Construct last fc layer
                 num_features = self.model.blocks[6].proj.in_features
                 self.model.blocks[6].proj = torch.nn.Linear(num_features, self.args.num_classes)
+            
+            ## If using CORN Ordinal regression, replace final layer with -1 output nodes.
+            if self.args.ordinal and self.args.ordinal_strat == 'CORN':
+                num_features = self.model.blocks[6].proj.in_features
+                self.model.blocks[6].proj = torch.nn.Linear(num_features, self.args.num_classes-1)
+
         elif self.args.arch == 'mvit':
             if self.args.transfer_learning:
                 self.model = torch.hub.load('facebookresearch/pytorchvideo', model='mvit_base_16x4', pretrained=True)
@@ -92,11 +101,18 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 pool_kv_stride_adaptive = self.args.mvit_pool_kv_stride_adaptive,
                 pool_kvq_kernel         = self.args.mvit_pool_kvq_kernel,
                 head_num_classes        = self.args.num_classes,
+                )
 
-        )
+            ## If using CORN Ordinal regression, replace final layer with -1 output nodes.
+            if self.args.ordinal and self.args.ordinal_strat == 'CORN':
+                num_features = self.model.head.proj.in_features
+                self.model.head.proj = torch.nn.Linear(num_features, self.args.num_classes-1)
+
             self.batch_key = "video"
         else:
             raise Exception("{self.args.arch} not supported")
+        
+
 
     def on_train_epoch_start(self):
         """
@@ -133,14 +149,22 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         x = batch[self.batch_key]
         # import pdb; pdb.set_trace()
         y_hat = self.model(x)
+        # == LOSS == 
         if self.args.ordinal:   
-            loss = self.ordinal_loss(y_hat, batch["label"])
+            if self.args.ordinal_strat == 'CORN':
+                loss = corn_loss(y_hat, batch['label'], num_classes=self.args.num_classes)
+            else:
+                loss = self.ordinal_loss(y_hat, batch["label"])
         else:                   
             loss = F.cross_entropy(y_hat, batch["label"])
+        # Manual logging
         if ((batch_idx % self.args.log_every_n_steps) == 0):
             preds = F.softmax(y_hat, dim=-1)
             if self.args.ordinal:
-                pred_labels = self.ordinal_prediction(preds)
+                if self.args.ordinal_strat == 'CORN':
+                    pred_labels = corn_label_from_logits(y_hat)
+                else:
+                    pred_labels = self.ordinal_prediction(preds)
             else:
                 pred_labels = torch.argmax(preds, dim=1)
             acc = self.train_accuracy(pred_labels, batch["label"])
@@ -161,8 +185,12 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         y_hat = self.model(x)
         preds = F.softmax(y_hat, dim=-1)
         if self.args.ordinal:   
-            loss = self.ordinal_loss(y_hat, batch["label"])
-            pred_labels = self.ordinal_prediction(preds)
+            if self.args.ordinal_strat == 'CORN':
+                loss = corn_loss(y_hat, batch['label'], num_classes=self.args.num_classes)
+                pred_labels = corn_label_from_logits(y_hat)
+            else:
+                loss = self.ordinal_loss(y_hat, batch["label"])
+                pred_labels = self.ordinal_prediction(preds)
         else:                  
             loss = F.cross_entropy(y_hat, batch["label"])
             pred_labels = torch.argmax(preds, dim=1)

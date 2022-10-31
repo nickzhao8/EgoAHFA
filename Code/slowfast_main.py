@@ -12,8 +12,8 @@ from datetime import datetime
 
 #os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
 
-# pytorch_lightning.trainer.seed_everything(seed=1)
-pytorch_lightning.trainer.seed_everything()
+pytorch_lightning.trainer.seed_everything(seed=1)
+# pytorch_lightning.trainer.seed_everything()
 parser  =  argparse.ArgumentParser()
 date = datetime.now().strftime("%m_%d_%H")
 
@@ -43,7 +43,7 @@ args.video_horizontal_flip_p        = float(0.5)
 args.workers                        = int(16)
 args.batch_size                     = int(8)
 
-# Data parameters
+### DATASET parameters ###
 # args.framerate                      = int(8)
 args.num_frames                     = int(32)
 # args.clip_duration                  = float(args.num_frames/args.framerate)
@@ -57,8 +57,17 @@ args.shuffle                        = True
 args.data_root                      = '/cluster/home/t63164uhn/Data/Video_JPG_Stack'
 # args.data_root                      = 'D:\\zhaon\\Datasets\\Video Segments'
 # args.vidclip_root                   = 'D:\\zhaon\\Datasets\\torch_VideoClips'
+args.sparse_temporal_sampling       = True
+args.num_segments                   = 4
+args.frames_per_segment             = 8
+args.num_frames                     = args.num_segments * args.frames_per_segment
+args.annotation_filename            = f'annotation_sparse_{args.num_segments}x{args.frames_per_segment}.txt'
+args.annotation_source              = 'annotation_32x2.txt'
+
+# args.annotation_filename            = 'annotation_32x2.txt'
+
+# Required Parameters
 args.arch                           = "slowfast"
-args.annotation_filename            = 'annotation_32x2.txt'
 
 # Pytorch Lightning Parameters
 args.accelerator                    = 'gpu'
@@ -73,8 +82,9 @@ args.log_root                       = 'Logs'
 args.log_every_n_steps              = 20
 
 # Model-specific Parameters
-args.ordinal                        = False
-args.transfer_learning              = False
+args.ordinal                        = True
+args.ordinal_strat                  = 'CORN'
+args.transfer_learning              = True
 args.pretrained_state_dict          = 'Models/slowfast/SlowFast_new.pyth'
 args.slowfast_alpha                 = int(4)
 args.slowfast_beta                  = float(1/8)
@@ -127,9 +137,9 @@ def main():
 
         trainer.fit(classification_module, datamodule)
         # == Resume from checkpoint ==
-#        ckpt_root = Path('Models','slowfast_transfer_09_23_16')
-#        ckpt_path = Path(ckpt_root, next(x for x in os.listdir(ckpt_root) if f'{subdir}.ckpt' in x))
-#        trainer.fit(classification_module, datamodule, ckpt_path=ckpt_path)
+        # ckpt_root = Path('Models','slowfast_transfer_09_23_16')
+        # ckpt_path = Path(ckpt_root, next(x for x in os.listdir(ckpt_root) if f'{subdir}.ckpt' in x))
+        # trainer.fit(classification_module, datamodule, ckpt_path=ckpt_path)
 
         # Save checkpoint
         model_dir = Path('Models', f'{args.arch}_{archtype}_{date}')
