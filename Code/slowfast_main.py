@@ -12,8 +12,8 @@ from datetime import datetime
 
 #os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
 
-# pytorch_lightning.trainer.seed_everything(seed=1)
-pytorch_lightning.trainer.seed_everything()
+pytorch_lightning.trainer.seed_everything(seed=1)
+# pytorch_lightning.trainer.seed_everything()
 parser  =  argparse.ArgumentParser()
 date = datetime.now().strftime("%m_%d_%H")
 
@@ -81,8 +81,9 @@ args.log_root                       = 'Logs'
 args.log_every_n_steps              = 20
 
 # Model-specific Parameters
-args.ordinal                        = False
-args.transfer_learning              = False
+args.ordinal                        = True
+args.ordinal_strat                  = 'CORN'
+args.transfer_learning              = True
 args.pretrained_state_dict          = 'Models/slowfast/SlowFast_new.pyth'
 args.slowfast_alpha                 = int(4)
 args.slowfast_beta                  = float(1/8)
@@ -121,8 +122,8 @@ def main():
                                                                 name=f"{args.arch}_{archtype}_{date}",
                                                                 version=f"{args.val_sub}_{date}")
         # DEBUG: start at later sub
-        skipsubs = ['Sub1','Sub10','Sub11','Sub12']
-        if subdir in skipsubs: continue
+        # skipsubs = ['Sub1','Sub10','Sub11','Sub12']
+        # if subdir in skipsubs: continue
 
         datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
         # datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
