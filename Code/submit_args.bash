@@ -1,4 +1,7 @@
 #!/bin/bash
+sbatch <<EOT
+
+#!/bin/bash
 
 #SBATCH -p gpu
 #SBATCH --nodes=1
@@ -16,8 +19,4 @@ export PYTHONFAULTHANDLER=1
 source /cluster/home/t63164uhn/.bashrc
 conda activate /cluster/home/t63164uhn/miniconda3/envs/pt1
 cd /cluster/home/t63164uhn/Code/EgoAHFA/
-python /cluster/home/t63164uhn/Code/EgoAHFA/Code/slowfast_main.py
-#SBATCH --signal=SIGUSR1@90
-
-
-
+python /cluster/home/t63164uhn/Code/EgoAHFA/Code/slowfast_main.py "$@"

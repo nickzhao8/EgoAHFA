@@ -3,7 +3,7 @@ from PytorchVideoTrain import VideoClassificationLightningModule, setup_logger
 import argparse
 import pytorch_lightning
 from pytorch_lightning.profiler import AdvancedProfiler, PyTorchProfiler
-from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping
+from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping, TQDMProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger
 import os
 from pathlib import Path
@@ -17,8 +17,16 @@ pytorch_lightning.trainer.seed_everything(seed=1)
 parser  =  argparse.ArgumentParser()
 date = datetime.now().strftime("%m_%d_%H")
 
-# Trainer parameters.
+# Default trainer parameters.
 parser  =  pytorch_lightning.Trainer.add_argparse_args(parser)
+
+# Argparse Parameters
+parser.add_argument("--arch", default=None, required=True, type=str)
+parser.add_argument("--ordinal", default=False, type=bool)
+parser.add_argument("--ordinal_strat", default='CORN', type=str)
+parser.add_argument("--transfer_learning", default=False, type=bool)
+parser.add_argument("--start_sub", default=1, type=int)
+parser.add_argument("--sparse_temporal_sampling", default=True, type=bool)
 
 args  =  parser.parse_args()
 
@@ -27,11 +35,15 @@ args.on_cluster                     = True
 args.job_name                       = "ptv_video_classification"
 args.working_directory              = "."
 args.partition                      = "gpu"
+args.video_path_prefix              = ""
+args.data_type                      = "video"
+
+# Learning Rate Parameters
 args.lr                             = float(1.6e-3)
 args.momentum                       = float(0.9)
 args.weight_decay                   = float(5e-2)
-args.video_path_prefix              = ""
-args.data_type                      = "video"
+
+# Video Transform Parameters
 args.video_means                    = tuple((0.45, 0.45, 0.45))
 args.video_stds                     = tuple((0.225, 0.225, 0.225))
 args.video_crop_size                = int(224)
@@ -40,10 +52,11 @@ args.video_max_short_side_scale     = int(320)
 args.video_horizontal_flip_p        = float(0.5)
 
 # Trainer Parameters
-args.workers                        = int(16)
+args.workers                        = int(8)
 args.batch_size                     = int(8)
 
 ### DATASET parameters ###
+args.data_root                      = '/cluster/home/t63164uhn/Data/GRASSP_JPG_FRAMES'
 # args.framerate                      = int(8)
 args.num_frames                     = int(32)
 # args.clip_duration                  = float(args.num_frames/args.framerate)
@@ -51,23 +64,13 @@ args.num_frames                     = int(32)
 args.stride                         = int(2)
 args.num_classes                    = int(6)
 args.shuffle                        = True
-
-# Required Parameters
-# args.data_root                      = 'D:\\zhaon\\Datasets\\Video_JPG_Stack'
-args.data_root                      = '/cluster/home/t63164uhn/Data/Video_JPG_Stack'
-# args.data_root                      = 'D:\\zhaon\\Datasets\\Video Segments'
 # args.vidclip_root                   = 'D:\\zhaon\\Datasets\\torch_VideoClips'
-args.sparse_temporal_sampling       = True
 args.num_segments                   = 4
 args.frames_per_segment             = 8
 args.num_frames                     = args.num_segments * args.frames_per_segment
 args.annotation_filename            = f'annotation_sparse_{args.num_segments}x{args.frames_per_segment}.txt'
 args.annotation_source              = 'annotation_32x2.txt'
-
 # args.annotation_filename            = 'annotation_32x2.txt'
-
-# Required Parameters
-args.arch                           = "slowfast"
 
 # Pytorch Lightning Parameters
 args.accelerator                    = 'gpu'
@@ -82,9 +85,6 @@ args.log_root                       = 'Logs'
 args.log_every_n_steps              = 20
 
 # Model-specific Parameters
-args.ordinal                        = True
-args.ordinal_strat                  = 'CORN'
-args.transfer_learning              = True
 args.pretrained_state_dict          = 'Models/slowfast/SlowFast_new.pyth'
 args.slowfast_alpha                 = int(4)
 args.slowfast_beta                  = float(1/8)
@@ -100,24 +100,35 @@ args.mvit_pool_kvq_kernel                = [3, 3, 3]
 # args.fast_dev_run                   = 1
 # args.limit_train_batches            = 100
 # args.limit_val_batches              = 1000
-args.enable_checkpointing           = True
+args.enable_checkpointing           = False
 # profiler = AdvancedProfiler(dirpath='Debug',filename='profilereport_'+date)
 # profiler = PyTorchProfiler(dirpath='Debug',filename='profilereport_'+date)
 # args.profiler                       = profiler
 
-#print(args)
+'''
+# === PARAMETERS THAT HAVE BEEN MOVED TO ARGPARSE ===
+args.arch                           = "slowfast"
+args.ordinal                        = True
+args.ordinal_strat                  = 'CORN'
+args.transfer_learning              = True
+args.sparse_temporal_sampling       = True
+'''
 
 def main():
     setup_logger()
 
-    for subdir in os.listdir(args.data_root):
+    subdirs = os.listdir(args.data_root)
+    for subdir in subdirs:
     # if True: # Dont want to unindent im lazy
-    # subdirs = ['Sub3', 'Sub6', 'Sub7', 'Sub12', 'Sub15', 'Sub17']
     # subdirs = ['Sub2', 'Sub3', 'Sub7', 'Sub9', 'Sub13', 'Sub16']
     # for subdir in subdirs:
         args.val_sub = subdir
-        # args.val_sub = 'Sub8'
+        
+        # start_sub: Start at args.start_sub (skip prior subs)
+        if subdirs.index(subdir) < subdirs.index(args.start_sub): continue
+
         archtype = 'transfer' if args.transfer_learning else 'scratch'
+        if args.ordinal: archtype = archtype + '_ordinal'
         args.results_path = f'Results/{args.arch}_{archtype}_{date}'
         args.logger                         = TensorBoardLogger(args.log_root, 
                                                                 name=f"{args.arch}_{archtype}_{date}",
@@ -132,6 +143,7 @@ def main():
         trainer = pytorch_lightning.Trainer.from_argparse_args(args)
         # For some reason including callbacks in args causes a multiprocessing error ¯\_(ツ)_/¯
         trainer.callbacks.extend([LearningRateMonitor(), 
+                                  TQDMProgressBar(refresh_rate=50),
                                   GRASSP_classes.GRASSPValidationCallback(),
                                   EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=5)])
 
