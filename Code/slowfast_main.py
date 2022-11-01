@@ -68,9 +68,11 @@ args.shuffle                        = True
 args.num_segments                   = 4
 args.frames_per_segment             = 8
 args.num_frames                     = args.num_segments * args.frames_per_segment
-args.annotation_filename            = f'annotation_sparse_{args.num_segments}x{args.frames_per_segment}.txt'
-args.annotation_source              = 'annotation_32x2.txt'
-# args.annotation_filename            = 'annotation_32x2.txt'
+if args.sparse_temporal_sampling:
+    args.annotation_filename            = f'annotation_sparse_{args.num_segments}x{args.frames_per_segment}.txt'
+    args.annotation_source              = 'annotation_32x2.txt'
+else:
+    args.annotation_filename            = 'annotation_32x2.txt'
 
 # Pytorch Lightning Parameters
 args.accelerator                    = 'gpu'
@@ -125,7 +127,7 @@ def main():
         args.val_sub = subdir
         
         # start_sub: Start at args.start_sub (skip prior subs)
-        if subdirs.index(subdir) < subdirs.index(args.start_sub): continue
+        if subdirs.index(subdir) < subdirs.index(f'Sub{args.start_sub}'): continue
 
         archtype = 'transfer' if args.transfer_learning else 'scratch'
         if args.ordinal: archtype = archtype + '_ordinal'

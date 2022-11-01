@@ -1,6 +1,5 @@
 #!/bin/bash
-sbatch <<EOT
-
+sbatch -A kite_gpu <<EOT
 #!/bin/bash
 
 #SBATCH -p gpu
@@ -10,6 +9,7 @@ sbatch <<EOT
 #SBATCH --gres=gpu:p100:4
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=38
+#SBATCH --job-name=sbatch_EgoAHFA_classification
 #SBATCH -o /cluster/home/t63164uhn/Code/EgoAHFA/slurm_logs/%x-%j.out 
 
 # debugging flags (optional)
@@ -19,4 +19,4 @@ export PYTHONFAULTHANDLER=1
 source /cluster/home/t63164uhn/.bashrc
 conda activate /cluster/home/t63164uhn/miniconda3/envs/pt1
 cd /cluster/home/t63164uhn/Code/EgoAHFA/
-python /cluster/home/t63164uhn/Code/EgoAHFA/Code/slowfast_main.py "$@"
+python /cluster/home/t63164uhn/Code/EgoAHFA/Code/slowfast_main.py $@
