@@ -46,3 +46,5 @@ lightning_logs/
 Logs/
 
 Models/
+
+.vscode/
