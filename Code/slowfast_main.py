@@ -26,6 +26,7 @@ parser.add_argument("--ordinal", default=False, type=bool)
 parser.add_argument("--ordinal_strat", default='CORN', type=str)
 parser.add_argument("--transfer_learning", default=False, type=bool)
 parser.add_argument("--start_sub", default=1, type=int)
+parser.add_argument("--end_sub", default=9, type=int)
 parser.add_argument("--sparse_temporal_sampling", default=True, type=bool)
 
 args  =  parser.parse_args()
@@ -126,8 +127,9 @@ def main():
     # for subdir in subdirs:
         args.val_sub = subdir
         
-        # start_sub: Start at args.start_sub (skip prior subs)
+        # start/end_sub: Start at args.start_sub and end at args.end_sub
         if subdirs.index(subdir) < subdirs.index(f'Sub{args.start_sub}'): continue
+        if subdirs.index(subdir) > subdirs.index(f'Sub{args.end_sub}'): continue
 
         archtype = 'transfer' if args.transfer_learning else 'scratch'
         if args.ordinal: archtype = archtype + '_ordinal'
