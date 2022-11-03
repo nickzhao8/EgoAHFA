@@ -22,11 +22,12 @@ parser  =  pytorch_lightning.Trainer.add_argparse_args(parser)
 
 # Argparse Parameters
 parser.add_argument("--arch", default=None, required=True, type=str)
-parser.add_argument("--ordinal", default=False, type=bool)
+parser.add_argument("--ordinal", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--ordinal_strat", default='CORN', type=str)
-parser.add_argument("--transfer_learning", default=False, type=bool)
+parser.add_argument("--transfer_learning", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--start_sub", default=1, type=int)
-parser.add_argument("--sparse_temporal_sampling", default=True, type=bool)
+parser.add_argument("--end_sub", default=9, type=int)
+parser.add_argument("--sparse_temporal_sampling", default=True, action=argparse.BooleanOptionalAction)
 
 args  =  parser.parse_args()
 
