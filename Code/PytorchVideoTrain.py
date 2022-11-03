@@ -110,7 +110,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
 
             self.batch_key = "video"
         else:
-            raise Exception("{self.args.arch} not supported")
+            raise Exception(f"{self.args.arch} not supported")
         
 
 
