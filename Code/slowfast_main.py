@@ -128,8 +128,8 @@ def main():
         args.val_sub = subdir
         
         # start/end_sub: Start at args.start_sub and end at args.end_sub
-        if subdirs.index(subdir) < subdirs.index(f'Sub{args.start_sub}'): continue
-        if subdirs.index(subdir) > subdirs.index(f'Sub{args.end_sub}'): continue
+        if int(subdir.split('Sub')[1]) < args.start_sub: continue
+        if int(subdir.split('Sub')[1]) > args.end_sub: continue
 
         archtype = 'transfer' if args.transfer_learning else 'scratch'
         if args.ordinal: archtype = archtype + '_ordinal'
@@ -138,7 +138,7 @@ def main():
                                                                 name=f"{args.arch}_{archtype}_{date}",
                                                                 version=f"{args.val_sub}_{date}")
         # DEBUG: start at later sub
-        # skipsubs = ['Sub1','Sub10','Sub11','Sub12','Sub13','Sub14','Sub15']
+        # skipsubs = ['Sub1','Sub4','Sub8','Sub9','Sub10','Sub14','Sub16','Sub17']
         # if subdir in skipsubs: continue
 
         datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
@@ -151,6 +151,7 @@ def main():
                                   GRASSP_classes.GRASSPValidationCallback(),
                                   EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=5)])
 
+        print(f"=== TRAINING {subdir} ===")
         trainer.fit(classification_module, datamodule)
         # == Resume from checkpoint ==
         # ckpt_root = Path('Models','slowfast_transfer_09_23_16')
