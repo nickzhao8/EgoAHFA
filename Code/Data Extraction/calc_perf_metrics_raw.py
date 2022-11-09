@@ -12,15 +12,30 @@ import torch
 from torchmetrics.functional import f1_score, precision, recall, accuracy
 from torchmetrics.functional import mean_absolute_error, mean_squared_error
 from filename_aggr_pred import filename_aggr_pred
-from calc_perf_metrics_distr import merge_dicts
 
 # exp_name = 'mvit_08_23_14'
-exp_name = 'slowfast_transfer_10_11_14'
+exp_name = 'slowfast_scratch_11_07_17'
 distr = True
 # exp_name = 'slowfast_scratch_09_29_17'
 # results_path = Path('Results', exp_name, 'Raw')
-results_path = Path(r'M:\Wearable Hand Monitoring\CODE AND DOCUMENTATION\Nick Z\Cluster_output\Results\slowfast_transfer_10_11_14\Raw')
+results_path = Path(r'M:\Wearable Hand Monitoring\CODE AND DOCUMENTATION\Nick Z\Cluster_output\Results', exp_name, 'Raw')
 results_files = os.listdir(results_path)
+
+# Recursively merge two nested dicts. Dict values must be type list or dict.  
+def merge_dicts(dict1, dict2): 
+    # Obtain all unique keys from both dicts 
+    keys = list(set(list(dict1.keys())+list(dict2.keys()))) 
+    for key in keys: 
+        if key == 'args': continue 
+        if key not in dict2: continue 
+        elif key not in dict1: dict1[key] = dict2[key] 
+        else: 
+            # If value is list, extend. If value is dict, recurse. 
+            if isinstance(dict1[key], list): 
+                dict1[key].extend(dict2[key]) 
+            elif isinstance(dict1[key], dict): 
+                dict1[key] = merge_dicts(dict1[key], dict2[key]) 
+    return dict1 
 
 pred_metrics = {}
 total_preds = []
@@ -158,18 +173,22 @@ aggr_metric_table.to_csv(aggr_savefile)
 
 ### PLOT CONFUSION MATRIX ###
 # import pdb; pdb.set_trace()
-# for sub in top_metrics:
-#     total_preds.extend(top_metrics[sub]['preds'])
-#     total_target.extend(top_metrics[sub]['target'])
+# for sub in top_raws:
+#     total_preds.extend(top_raws[sub]['preds'])
+#     total_target.extend(top_raws[sub]['target'])
 # ConfusionMatrixDisplay.from_predictions(total_target, total_preds, normalize='all')
 
 ## PLOT DATA TABLE ### 
+rounded_table = aggr_metric_table.round(decimals=3)
 fig, ax = plt.subplots()
 fig.patch.set_visible(False)
 ax.axis('off')
-ax.axis('tight')
-table = ax.table(cellText=aggr_metric_table.values, colLabels=aggr_metric_table.columns)
-fig.tight_layout()
+# ax.axis('tight')
+table = plt.table(cellText=rounded_table.values, colLabels=rounded_table.columns, loc="center")
+table.auto_set_font_size(False)
+table.set_fontsize(10)
+table.scale(1,1.2)
+# fig.tight_layout()
 
 plt.show()
 
