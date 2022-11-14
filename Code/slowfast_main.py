@@ -25,9 +25,10 @@ parser.add_argument("--arch", default=None, required=True, type=str)
 parser.add_argument("--ordinal", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--ordinal_strat", default='CORN', type=str)
 parser.add_argument("--transfer_learning", default=False, action=argparse.BooleanOptionalAction)
-parser.add_argument("--start_sub", default=1, type=int)
 parser.add_argument("--sparse_temporal_sampling", default=True, action=argparse.BooleanOptionalAction)
+parser.add_argument("--start_sub", default=1, type=int)
 parser.add_argument("--end_sub", default=9, type=int)
+parser.add_argument("--skip_sub", default=None, nargs='+', type=int)
 
 args  =  parser.parse_args()
 
@@ -138,8 +139,9 @@ def main():
                                                                 name=f"{args.arch}_{archtype}_{date}",
                                                                 version=f"{args.val_sub}_{date}")
         # DEBUG: start at later sub
-        # skipsubs = ['Sub1','Sub4','Sub8','Sub9','Sub10','Sub14','Sub16','Sub17']
-        # if subdir in skipsubs: continue
+        if args.skip_sub is not None: 
+            skipsubs = [f"Sub{x}" for x in args.skip_sub]
+            if subdir in skipsubs: continue
 
         datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
         # datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
