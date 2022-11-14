@@ -153,7 +153,8 @@ def main():
                                   GRASSP_classes.GRASSPValidationCallback(),
                                   EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=5)])
 
-        print(f"=== TRAINING {subdir} ===")
+        print(f"=== TRAINING RUN: {args.start_sub} {args.arch} {archtype} ord: {args.ordinal} \
+                sparse: {args.sparse_temporal_sampling}  ===")
         trainer.fit(classification_module, datamodule)
         # == Resume from checkpoint ==
         # ckpt_root = Path('Models','slowfast_transfer_09_23_16')
