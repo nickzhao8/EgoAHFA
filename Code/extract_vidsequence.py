@@ -25,8 +25,8 @@ def vid_process (infile, outfile, start=0, end=0):
 	)
 
 # Define file paths
-datapath = Path("M:/Wearable Hand Monitoring/CODE AND DOCUMENTATION/Nick Z/HomeLab_GRASSP_Annotated.xlsx")
-video_repo = Path(r'M:\Wearable Hand Monitoring Datasets_DONOTMODIFY\DATASET_SCI')
+datapath = Path("M:/Wearable_Hand_Monitoring/CODE AND DOCUMENTATION/Nick Z/HomeLab_GRASSP_Annotated.xlsx")
+video_repo = Path(r'M:\Wearable_Hand_Monitoring Datasets_DONOTMODIFY\DATASET_SCI')
 out_root = Path(r'C:\Users\zhaon\Documents\GRASSP_JPG_FRAMES')
 
 # Read Excel spreadsheet
