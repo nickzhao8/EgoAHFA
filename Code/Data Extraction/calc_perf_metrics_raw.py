@@ -17,7 +17,7 @@ from filename_aggr_pred import filename_aggr_pred
 exp_name = 'slowfast_scratch_11_09_17'
 distr = True
 # exp_name = 'slowfast_scratch_09_29_17'
-if distr:   results_path = Path(r'M:\Wearable_Hand_Monitoring\CODE AND DOCUMENTATION\Nick Z\Cluster_output\Results', exp_name, 'Raw')
+if distr:   results_path = Path(r'M:\Wearable Hand Monitoring\CODE AND DOCUMENTATION\Nick Z\Cluster_output\Results', exp_name, 'Raw')
 else:       results_path = Path('Results', exp_name, 'Raw')
 results_files = os.listdir(results_path)
 
