@@ -81,7 +81,7 @@ args.accelerator                    = 'gpu'
 args.devices                        = 4
 args.strategy                       = 'ddp'
 args.num_nodes                      = 1
-args.max_epochs                     = 15
+args.max_epochs                     = 20
 args.replace_sampler_ddp            = False
 args.precision                      = 16
 args.log_root                       = 'Logs'
@@ -151,7 +151,7 @@ def main():
         trainer.callbacks.extend([LearningRateMonitor(), 
                                   TQDMProgressBar(refresh_rate=50),
                                   GRASSP_classes.GRASSPValidationCallback(),
-                                  EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=5)])
+                                  EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=10)])
 
         print(f"=== TRAINING RUN: {args.start_sub} {args.arch} {archtype} ord: {args.ordinal} \
                 sparse: {args.sparse_temporal_sampling}  ===")
