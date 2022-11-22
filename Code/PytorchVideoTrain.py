@@ -111,8 +111,6 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             self.batch_key = "video"
         else:
             raise Exception(f"{self.args.arch} not supported")
-        
-
 
     def on_train_epoch_start(self):
         """
@@ -125,6 +123,12 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         self.train_losses = []
         self.train_accs = []
         self.train_maes = []
+    
+    def on_train_epoch_end(self) -> None:
+        # Log Histogram of model weights
+        for name, params in self.named_parameters():
+            self.logger.experiment.add_histogram(name, params, self.current_epoch)
+        return super().on_train_epoch_end()
 
     def forward(self, x):
         return self.model(x)
