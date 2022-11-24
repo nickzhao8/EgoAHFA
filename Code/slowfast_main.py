@@ -45,6 +45,7 @@ args.data_type                      = "video"
 args.lr                             = float(1.6e-3)
 args.momentum                       = float(0.9)
 args.weight_decay                   = float(5e-2)
+args.warmup                         = 0
 
 # Video Transform Parameters
 args.video_means                    = tuple((0.45, 0.45, 0.45))
@@ -177,6 +178,11 @@ def main():
         with open(savefile, 'w') as f:
             json.dump(metrics, f, indent=4)
         print(f'Saved metrics to {str(savefile)}')
+
+    # Save hyperparams
+    hp_file = Path(results_dir, 'args.txt')
+    with open(hp_file, 'w') as f:
+        json.dump({'args':vars(args)}, f, default=GRASSP_classes.dumper, indent=4)
 
 if __name__ == '__main__':
     main()

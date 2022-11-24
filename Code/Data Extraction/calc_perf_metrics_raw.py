@@ -14,8 +14,8 @@ from torchmetrics.functional import mean_absolute_error, mean_squared_error
 from filename_aggr_pred import filename_aggr_pred
 
 # exp_name = 'mvit_08_23_14'
-exp_name = 'slowfast_scratch_11_09_17'
-distr = True
+exp_name = 'SLOWFAST_SCRATCH_NOORD_SPARSE'
+distr = False
 # exp_name = 'slowfast_scratch_09_29_17'
 if distr:   results_path = Path(r'M:\Wearable Hand Monitoring\CODE AND DOCUMENTATION\Nick Z\Cluster_output\Results', exp_name, 'Raw')
 else:       results_path = Path('Results', exp_name, 'Raw')
@@ -86,14 +86,23 @@ for filename in results_files:
         data['preds'] = list(itertools.chain.from_iterable(data['preds']))
         data['target'] = list(itertools.chain.from_iterable(data['target']))
 
-        preds = torch.tensor(data['preds'])
-        target = torch.tensor(data['target'])
+        # Remove class 0 from dataset FIXME: Skip if consolidating classes
+        for i in range(data['target'].count(0)):
+            rm_idx = data['target'].index(0)
+            data['preds'].pop(rm_idx)
+            data['target'].pop(rm_idx)
 
-        #pred_metrics[filename]['macro_precision'] = precision(preds, target, average='macro', num_classes=len(classes))
+        preds = torch.tensor(data['preds'])   - 1   # -1 because we are removing class 0
+        target = torch.tensor(data['target']) - 1
+
         #pred_metrics[filename]['micro_precision'] = precision(preds, target, average='micro', num_classes=len(classes))
-        #pred_metrics[filename]['macro_recall'] = recall(preds, target, average='macro', num_classes=len(classes))
         #pred_metrics[filename]['micro_recall'] = recall(preds, target, average='micro', num_classes=len(classes))
-        pred_metrics[filename]['macro_f1'] = f1_score(preds, target, average='macro', num_classes=6)
+        pred_metrics[filename]['macro_recall'] = recall(preds, target, average='macro', num_classes=5)
+        pred_metrics[filename]['macro_precision'] = precision(preds, target, average='macro', num_classes=5)
+        pred_metrics[filename]['macro_f1'] = f1_score(preds, target, average='macro', num_classes=5)
+        pred_metrics[filename]['weighted_recall'] = recall(preds, target, average='weighted', num_classes=5)
+        pred_metrics[filename]['weighted_precision'] = precision(preds, target, average='weighted', num_classes=5)
+        pred_metrics[filename]['weighted_f1'] = f1_score(preds, target, average='weighted', num_classes=5)
         #pred_metrics[filename]['micro_f1'] = f1_score(preds, target, average='micro', num_classes=len(classes))
         pred_metrics[filename]['accuracy'] = accuracy(preds, target)
         pred_metrics[filename]['MAE'] = mean_absolute_error(preds, target)
@@ -105,6 +114,11 @@ for filename in results_files:
             top_metrics[sub]['accuracy'] = pred_metrics[filename]['accuracy'].item()
             top_metrics[sub]['MAE'] = pred_metrics[filename]['MAE'].item()
             top_metrics[sub]['macro_f1'] = pred_metrics[filename]['macro_f1'].item()
+            top_metrics[sub]['macro_recall'] = pred_metrics[filename]['macro_recall'].item()
+            top_metrics[sub]['macro_precision'] = pred_metrics[filename]['macro_precision'].item()
+            top_metrics[sub]['weighted_f1'] = pred_metrics[filename]['weighted_f1'].item()
+            top_metrics[sub]['weighted_recall'] = pred_metrics[filename]['weighted_recall'].item()
+            top_metrics[sub]['weighted_precision'] = pred_metrics[filename]['weighted_precision'].item()
             top_metrics[sub]['epoch'] = epoch
             top_raws[sub]['preds'] = data['preds']
             top_raws[sub]['target'] = data['target']
@@ -123,11 +137,21 @@ for filename in results_files:
         aggr_accuracy = accuracy(aggr_preds, aggr_target)
         aggr_MAE = mean_absolute_error(aggr_preds, aggr_target)
         aggr_macrof1 = f1_score(aggr_preds, aggr_target, average='macro', num_classes=6)
+        aggr_macro_recall = recall(aggr_preds, aggr_target, average='macro', num_classes=6)
+        aggr_macro_precision = precision(aggr_preds, aggr_target, average='macro', num_classes=6)
+        aggr_weightedf1 = f1_score(aggr_preds, aggr_target, average='weighted', num_classes=6)
+        aggr_weighted_recall = recall(aggr_preds, aggr_target, average='weighted', num_classes=6)
+        aggr_weighted_precision = precision(aggr_preds, aggr_target, average='weighted', num_classes=6)
         if 'accuracy' not in top_aggr_metrics[sub] or top_aggr_metrics[sub]['MAE'] > aggr_MAE :
             top_aggr_metrics[sub]['sub'] = int(sub.split('Sub')[1])
             top_aggr_metrics[sub]['accuracy'] = aggr_accuracy.item()
             top_aggr_metrics[sub]['MAE'] = aggr_MAE.item()
             top_aggr_metrics[sub]['macro_f1'] = aggr_macrof1.item()
+            top_aggr_metrics[sub]['macro_recall'] = aggr_macro_recall.item()
+            top_aggr_metrics[sub]['macro_precision'] = aggr_macro_precision.item()
+            top_aggr_metrics[sub]['weighted_f1'] = aggr_weightedf1.item()
+            top_aggr_metrics[sub]['weighted_recall'] = aggr_weighted_recall.item()
+            top_aggr_metrics[sub]['weighted_precision'] = aggr_weighted_precision.item()
             top_aggr_metrics[sub]['epoch'] = epoch
             top_aggr_raws['preds'] = data['preds']
             top_aggr_raws['target'] = data['target']
@@ -149,6 +173,11 @@ avg_row = {'sub':'avg',
            'accuracy':metric_table['accuracy'].mean(),
            'MAE':metric_table['MAE'].mean(),
            'macro_f1':metric_table['macro_f1'].mean(),
+           'macro_recall':metric_table['macro_recall'].mean(),
+           'macro_precision':metric_table['macro_precision'].mean(),
+           'weighted_f1':metric_table['weighted_f1'].mean(),
+           'weighted_recall':metric_table['weighted_recall'].mean(),
+           'weighted_precision':metric_table['weighted_precision'].mean(),
            'epoch':None}
 metric_table = pd.concat([metric_table, pd.DataFrame(avg_row,index=['avg'])]) # Append avg row
 savepath = Path(results_path, '..', 'Extracted')
@@ -162,6 +191,11 @@ aggr_avg_row = {'sub':'avg',
                 'accuracy':aggr_metric_table['accuracy'].mean(),
                 'MAE':aggr_metric_table['MAE'].mean(),
                 'macro_f1':aggr_metric_table['macro_f1'].mean(),
+                'macro_recall':aggr_metric_table['macro_recall'].mean(),
+                'macro_precision':aggr_metric_table['macro_precision'].mean(),
+                'weighted_f1':aggr_metric_table['weighted_f1'].mean(),
+                'weighted_recall':aggr_metric_table['weighted_recall'].mean(),
+                'weighted_precision':aggr_metric_table['weighted_precision'].mean(),
                 'epoch':None}
 aggr_metric_table = pd.concat([aggr_metric_table, pd.DataFrame(aggr_avg_row,index=['avg'])]) # Append avg row
 aggr_savefile = Path(savepath, f'{exp_name}_AggrTopMetrics.csv')

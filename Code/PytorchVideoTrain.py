@@ -267,6 +267,27 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 filenames[video_name]['target'] = [target[i]]
                 filenames[video_name]['clip_index'] = [clip_index[i].item()]
         return filenames
+    
+    # learning rate warm-up
+    def optimizer_step(
+        self,
+        epoch,
+        batch_idx,
+        optimizer,
+        optimizer_idx,
+        optimizer_closure,
+        on_tpu=False,
+        using_native_amp=False,
+        using_lbfgs=False,
+    ):
+        # update params
+        optimizer.step(closure=optimizer_closure)
+
+        # Linear warm-up: skip args.warmup number of steps
+        if self.trainer.global_step < self.args.warmup:
+            lr_scale = min(1.0, float(self.trainer.global_step + 1) / float(self.args.warmup))
+            for pg in optimizer.param_groups:
+                pg["lr"] = lr_scale * self.hparams.learning_rate
 
     def configure_optimizers(self):
         if self.args.arch == 'mvit':
