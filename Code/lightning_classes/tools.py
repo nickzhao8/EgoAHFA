@@ -83,3 +83,10 @@ def rename_spaces(root):
             for task in tasks:
                 if ' ' in task:
                     os.rename(Path(root,subdir,score,task), Path(root,subdir,score,task.replace(' ','_')))
+
+def none_int_or_str(value):
+    if value == 'None':
+        return None
+    elif value.isnumeric():
+        return int(value)
+    return value

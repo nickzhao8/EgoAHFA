@@ -1,4 +1,5 @@
 from lightning_classes import GRASSP_classes
+from lightning_classes.tools import none_int_or_str
 from PytorchVideoTrain import VideoClassificationLightningModule, setup_logger
 import argparse
 import pytorch_lightning
@@ -14,24 +15,55 @@ from datetime import datetime
 
 pytorch_lightning.trainer.seed_everything(seed=1)
 # pytorch_lightning.trainer.seed_everything()
-parser  =  argparse.ArgumentParser()
+parser  =  argparse.ArgumentParser(fromfile_prefix_chars='@', conflict_handler='resolve')
 date = datetime.now().strftime("%m_%d_%H")
 
 # Default trainer parameters.
 parser  =  pytorch_lightning.Trainer.add_argparse_args(parser)
 
-# Argparse Parameters
+# === Argparse Parameters ===
 parser.add_argument("--arch", default=None, required=True, type=str)
 parser.add_argument("--ordinal", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--ordinal_strat", default='CORN', type=str)
 parser.add_argument("--transfer_learning", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--sparse_temporal_sampling", default=True, action=argparse.BooleanOptionalAction)
+
+# LOSO-CV Parameters
 parser.add_argument("--start_sub", default=1, type=int)
 parser.add_argument("--end_sub", default=9, type=int)
 parser.add_argument("--skip_sub", default=None, nargs='+', type=int)
 
+# Learning Rate Parameters
+parser.add_argument("--lr"          , default=float(1.6e-3) , type=float) 
+parser.add_argument("--momentum"    , default=float(0.9)    , type=float) 
+parser.add_argument("--weight_decay", default=float(5e-2)   , type=float) 
+parser.add_argument("--warmup"      , default=0             , type=float) 
+
+# Trainer Parameters
+parser.add_argument("--workers"     , default= int(4)       , type=int)
+parser.add_argument("--batch_size"  , default= int(8)       , type=int)
+
+### DATASET parameters ###
+parser.add_argument("--num_frames"         , default= int(32)                                       , type=int)
+parser.add_argument("--stride"             , default= int(2)                                        , type=int)
+parser.add_argument("--num_classes"        , default= int(6)                                        , type=int)
+parser.add_argument("--shuffle"            , default= True                                          , action=argparse.BooleanOptionalAction)
+parser.add_argument("--data_root"          , default= r'C:\Users\zhaon\Documents\GRASSP_JPG_FRAMES' , type=str)
+parser.add_argument("--num_segments"       , default= 4                                             , type=int)
+parser.add_argument("--frames_per_segment" , default= 8                                             , type=int)
+
+# Epoch Parameters
+parser.add_argument("--max_epochs"          , default = 20   , type=int)  
+parser.add_argument("--patience"            , default = 10   , type=int)
+
+# Debugging Parameters
+parser.add_argument("--fast_dev_run"         , default = False  )
+parser.add_argument("--limit_train_batches"  , default = None   , type=none_int_or_str)
+parser.add_argument("--limit_val_batches"    , default = None   , type=none_int_or_str )
+parser.add_argument("--enable_checkpointing" , default = False , action=argparse.BooleanOptionalAction)
+parser.add_argument("--profiler_type"    , default = None       , type=none_int_or_str )
+
 args  =  parser.parse_args()
-args.job_name  =  "ptv_video_classification"
 
 # Default Parameters
 args.on_cluster                     = False
@@ -41,12 +73,6 @@ args.partition                      = "gpu"
 args.video_path_prefix              = ""
 args.data_type                      = "video"
 
-# Learning Rate Parameters
-args.lr                             = float(1.6e-3)
-args.momentum                       = float(0.9)
-args.weight_decay                   = float(5e-2)
-args.warmup                         = 0
-
 # Video Transform Parameters
 args.video_means                    = tuple((0.45, 0.45, 0.45))
 args.video_stds                     = tuple((0.225, 0.225, 0.225))
@@ -55,22 +81,7 @@ args.video_min_short_side_scale     = int(256)
 args.video_max_short_side_scale     = int(320)
 args.video_horizontal_flip_p        = float(0.5)
 
-# Trainer Parameters
-args.workers                        = int(4)
-args.batch_size                     = int(8)
-
-### DATASET parameters ###
-# args.framerate                      = int(8)
-args.num_frames                     = int(32)
-# args.clip_duration                  = float(args.num_frames/args.framerate)
-# args.clip_duration                  = 1
-args.stride                         = int(2)
-args.num_classes                    = int(6)
-args.shuffle                        = True
-args.data_root                      = r'C:\Users\zhaon\Documents\GRASSP_JPG_FRAMES'
-# args.vidclip_root                   = 'D:\\zhaon\\Datasets\\torch_VideoClips'
-args.num_segments                   = 4
-args.frames_per_segment             = 8
+# Dataset Parameters
 args.num_frames                     = args.num_segments * args.frames_per_segment
 if args.sparse_temporal_sampling:
     args.annotation_filename            = f'annotation_sparse_{args.num_segments}x{args.frames_per_segment}.txt'
@@ -83,7 +94,6 @@ args.accelerator                    = 'gpu'
 args.devices                        = -1
 # args.strategy                       = 'ddp'
 # args.num_nodes                      = 1
-args.max_epochs                     = 20
 args.replace_sampler_ddp            = False
 args.precision                      = 16
 args.log_root                       = 'Logs'
@@ -102,23 +112,11 @@ args.mvit_pool_q_stride_size             = [[1, 1, 2, 2], [3, 1, 2, 2], [14, 1, 
 args.mvit_pool_kv_stride_adaptive        = [1, 8, 8]
 args.mvit_pool_kvq_kernel                = [3, 3, 3]
 
-# Debugging Parameters
-# args.fast_dev_run                   = 10
-# args.limit_train_batches            = 100
-# args.limit_val_batches              = 1000
-args.enable_checkpointing           = False
-# profiler = AdvancedProfiler(dirpath='Debug',filename='profilereport_'+date)
-# profiler = PyTorchProfiler(dirpath='Debug',filename='profilereport_'+date)
-# args.profiler                       = profiler
-
-'''
-# === PARAMETERS THAT HAVE BEEN MOVED TO ARGPARSE ===
-args.arch                           = "slowfast"
-args.ordinal                        = True
-args.ordinal_strat                  = 'CORN'
-args.transfer_learning              = True
-args.sparse_temporal_sampling       = True
-'''
+# Debug Parameters
+if args.profiler_type == 'advanced': profiler = AdvancedProfiler(dirpath='Debug',filename='profilereport_'+date)
+elif args.profiler_type == 'pytorch': profiler = PyTorchProfiler(dirpath='Debug',filename='profilereport_'+date)
+else: profiler = None
+args.profiler                       = profiler
 
 def main():
     setup_logger()
@@ -153,7 +151,7 @@ def main():
         trainer.callbacks.extend([LearningRateMonitor(), 
                                   TQDMProgressBar(refresh_rate=50),
                                   GRASSP_classes.GRASSPValidationCallback(),
-                                  EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=10)])
+                                  EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=args.patience)])
 
         print(f"=== TRAINING RUN: {args.start_sub} {args.arch} {archtype} ord: {args.ordinal} \
                 sparse: {args.sparse_temporal_sampling}  ===")
@@ -179,10 +177,10 @@ def main():
             json.dump(metrics, f, indent=4)
         print(f'Saved metrics to {str(savefile)}')
 
-    # Save hyperparams
-    hp_file = Path(results_dir, 'args.txt')
-    with open(hp_file, 'w') as f:
-        json.dump({'args':vars(args)}, f, default=GRASSP_classes.dumper, indent=4)
+        # Save hyperparams
+        hp_file = Path(results_dir, 'args.txt')
+        with open(hp_file, 'w') as f:
+            json.dump({'args':vars(args)}, f, default=GRASSP_classes.dumper, indent=4)
 
 if __name__ == '__main__':
     main()
