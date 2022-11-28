@@ -15,7 +15,7 @@ from datetime import datetime
 
 pytorch_lightning.trainer.seed_everything(seed=1)
 # pytorch_lightning.trainer.seed_everything()
-parser  =  argparse.ArgumentParser(fromfile_prefix_chars='@', conflict_handler='resolve')
+parser  =  argparse.ArgumentParser(fromfile_prefix_chars='@', conflict_handler='resolve', prefix_chars='--')
 date = datetime.now().strftime("%m_%d_%H")
 
 # Default trainer parameters.
@@ -63,7 +63,7 @@ parser.add_argument("--limit_val_batches"    , default = None   , type=none_int_
 parser.add_argument("--enable_checkpointing" , default = False , action=argparse.BooleanOptionalAction)
 parser.add_argument("--profiler_type"    , default = None       , type=none_int_or_str )
 
-args  =  parser.parse_args()
+args, _  =  parser.parse_known_args()
 
 # Default Parameters
 args.on_cluster                     = True
@@ -122,15 +122,12 @@ def main():
     setup_logger()
 
     subdirs = os.listdir(args.data_root)
-    for subdir in subdirs:
+    for i in range(args.start_sub, args.end_sub + 1): # +1 because end_sub is inclusive
     # if True: # Dont want to unindent im lazy
     # subdirs = ['Sub2', 'Sub3', 'Sub7', 'Sub9', 'Sub13', 'Sub16']
     # for subdir in subdirs:
+        subdir = f'Sub{i}'
         args.val_sub = subdir
-        
-        # start/end_sub: Start at args.start_sub and end at args.end_sub
-        if int(subdir.split('Sub')[1]) < args.start_sub: continue
-        if int(subdir.split('Sub')[1]) > args.end_sub: continue
 
         archtype = 'transfer' if args.transfer_learning else 'scratch'
         if args.ordinal: archtype = archtype + '_ordinal'
