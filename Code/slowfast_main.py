@@ -15,7 +15,7 @@ from datetime import datetime
 
 pytorch_lightning.trainer.seed_everything(seed=1)
 # pytorch_lightning.trainer.seed_everything()
-parser  =  argparse.ArgumentParser(fromfile_prefix_chars='@', conflict_handler='resolve')
+parser  =  argparse.ArgumentParser(fromfile_prefix_chars='@', conflict_handler='resolve', prefix_chars='--')
 date = datetime.now().strftime("%m_%d_%H")
 
 # Default trainer parameters.
@@ -63,7 +63,7 @@ parser.add_argument("--limit_val_batches"    , default = None   , type=none_int_
 parser.add_argument("--enable_checkpointing" , default = False , action=argparse.BooleanOptionalAction)
 parser.add_argument("--profiler_type"    , default = None       , type=none_int_or_str )
 
-args  =  parser.parse_args()
+args, _  =  parser.parse_known_args()
 
 # Default Parameters
 args.on_cluster                     = False
