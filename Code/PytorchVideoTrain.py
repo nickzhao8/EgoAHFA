@@ -287,7 +287,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         if self.trainer.global_step < self.args.warmup:
             lr_scale = min(1.0, float(self.trainer.global_step + 1) / float(self.args.warmup))
             for pg in optimizer.param_groups:
-                pg["lr"] = lr_scale * self.hparams.learning_rate
+                pg["lr"] = lr_scale * self.args.lr
 
     def configure_optimizers(self):
         if self.args.arch == 'mvit':
