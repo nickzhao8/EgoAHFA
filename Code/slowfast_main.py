@@ -101,7 +101,7 @@ args.log_root                       = 'Logs'
 args.log_every_n_steps              = 20
 
 # Model-specific Parameters
-args.pretrained_state_dict          = 'Models/slowfast/SlowFast_new.pyth'
+args.pretrained_state_dict          = 'Models/slowfast/slowfast_5class.pyth'
 args.slowfast_alpha                 = int(4)
 args.slowfast_beta                  = float(1/8)
 args.slowfast_fusion_conv_channel_ratio = int(2)
