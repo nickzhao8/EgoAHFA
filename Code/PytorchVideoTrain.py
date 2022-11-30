@@ -17,8 +17,9 @@ import torch.nn.functional as F
 from pytorch_lightning.callbacks import LearningRateMonitor
 import torchmetrics
 from lightning_classes.GRASSP_classes import GRASSPDataModule
-from coral_pytorch.losses import corn_loss
-from coral_pytorch.dataset import corn_label_from_logits
+from coral_pytorch.losses import corn_loss, coral_loss
+from coral_pytorch.layers import CoralLayer
+from coral_pytorch.dataset import corn_label_from_logits, levels_from_labelbatch, proba_to_label
 
 
 class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
@@ -82,6 +83,10 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             if self.args.ordinal and self.args.ordinal_strat == 'CORN':
                 num_features = self.model.blocks[6].proj.in_features
                 self.model.blocks[6].proj = torch.nn.Linear(num_features, self.args.num_classes-1)
+            ## If using CORAL Ordinal regression, replace final layer with a CORAL weight-sharing layer.
+            if self.args.ordinal and self.args.ordinal_strat == 'CORAL':
+                num_features = self.model.blocks[6].proj.in_features
+                self.model.blocks[6].proj = CoralLayer(size_in=num_features, num_classes=self.args.num_classes)
 
         elif self.args.arch == 'mvit':
             if self.args.transfer_learning:
@@ -107,6 +112,9 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             if self.args.ordinal and self.args.ordinal_strat == 'CORN':
                 num_features = self.model.head.proj.in_features
                 self.model.head.proj = torch.nn.Linear(num_features, self.args.num_classes-1)
+            if self.args.ordinal and self.args.ordinal_strat == 'CORAL':
+                num_features = self.model.blocks[6].proj.in_features
+                self.model.blocks[6].proj = CoralLayer(size_in=num_features, num_classes=self.args.num_classes)
 
             self.batch_key = "video"
         else:
@@ -157,6 +165,9 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         if self.args.ordinal:   
             if self.args.ordinal_strat == 'CORN':
                 loss = corn_loss(y_hat, batch['label'], num_classes=self.args.num_classes)
+            elif self.args.ordinal_strat == 'CORAL':
+                levels = levels_from_labelbatch(batch['label'], num_classes=self.args.num_classes)
+                loss = coral_loss(y_hat, levels)
             else:
                 loss = self.ordinal_loss(y_hat, batch["label"])
         else:                   
@@ -167,6 +178,8 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             if self.args.ordinal:
                 if self.args.ordinal_strat == 'CORN':
                     pred_labels = corn_label_from_logits(y_hat)
+                elif self.args.ordinal_strat == 'CORAL':
+                    pred_labels = proba_to_label(torch.sigmoid(y_hat))
                 else:
                     pred_labels = self.ordinal_prediction(preds)
             else:
@@ -192,6 +205,10 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             if self.args.ordinal_strat == 'CORN':
                 loss = corn_loss(y_hat, batch['label'], num_classes=self.args.num_classes)
                 pred_labels = corn_label_from_logits(y_hat)
+            elif self.args.ordinal_strat == 'CORAL':
+                levels = levels_from_labelbatch(batch['label'], num_classes=self.args.num_classes)
+                loss = coral_loss(y_hat, levels)
+                pred_labels = proba_to_label(torch.sigmoid(y_hat))
             else:
                 loss = self.ordinal_loss(y_hat, batch["label"])
                 pred_labels = self.ordinal_prediction(preds)
