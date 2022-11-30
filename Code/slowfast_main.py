@@ -122,15 +122,12 @@ def main():
     setup_logger()
 
     subdirs = os.listdir(args.data_root)
-    for subdir in subdirs:
+    for i in range(args.start_sub, args.end_sub + 1): # +1 because end_sub is inclusive
     # if True: # Dont want to unindent im lazy
     # subdirs = ['Sub2', 'Sub3', 'Sub7', 'Sub9', 'Sub13', 'Sub16']
     # for subdir in subdirs:
+        subdir = f'Sub{i}'
         args.val_sub = subdir
-        
-        # start/end_sub: Start at args.start_sub and end at args.end_sub
-        if int(subdir.split('Sub')[1]) < args.start_sub: continue
-        if int(subdir.split('Sub')[1]) > args.end_sub: continue
 
         archtype = 'transfer' if args.transfer_learning else 'scratch'
         if args.ordinal: archtype = archtype + '_ordinal'
