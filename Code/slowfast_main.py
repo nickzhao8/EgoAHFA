@@ -24,7 +24,7 @@ parser  =  pytorch_lightning.Trainer.add_argparse_args(parser)
 # === Argparse Parameters ===
 parser.add_argument("--arch", default=None, required=True, type=str)
 parser.add_argument("--ordinal", default=False, action=argparse.BooleanOptionalAction)
-parser.add_argument("--ordinal_strat", default='CORN', type=str)
+parser.add_argument("--ordinal_strat", default=None, type=str)
 parser.add_argument("--transfer_learning", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--sparse_temporal_sampling", default=True, action=argparse.BooleanOptionalAction)
 
@@ -144,14 +144,14 @@ def main():
         # datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
         classification_module = VideoClassificationLightningModule(args)
         trainer = pytorch_lightning.Trainer.from_argparse_args(args)
+        trainer.callbacks[0] = TQDMProgressBar(refresh_rate=50) # overwriting progress bar
         # For some reason including callbacks in args causes a multiprocessing error ¯\_(ツ)_/¯
         trainer.callbacks.extend([LearningRateMonitor(), 
-                                  TQDMProgressBar(refresh_rate=50),
                                   GRASSP_classes.GRASSPValidationCallback(),
                                   EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=args.patience)])
 
-        print(f"=== TRAINING RUN: {args.start_sub} {args.arch} {archtype} ord: {args.ordinal} \
-                sparse: {args.sparse_temporal_sampling}  ===")
+        print(f"=== TRAINING RUN: {args.start_sub} {args.arch} {archtype} ord_strat: {args.ordinal_strat} \
+sparse: {args.sparse_temporal_sampling}  ===")
         trainer.fit(classification_module, datamodule)
         # == Resume from checkpoint ==
         # ckpt_root = Path('Models','slowfast_transfer_09_23_16')

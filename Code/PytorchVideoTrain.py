@@ -131,6 +131,9 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         self.train_losses = []
         self.train_accs = []
         self.train_maes = []
+        # Display val_sub on progress bar
+        val_subnum = int(self.args.val_sub.lower().split('sub')[-1])
+        self.log("val_sub", val_subnum, prog_bar=True)
     
     def on_train_epoch_end(self) -> None:
         # Log Histogram of model weights
@@ -230,7 +233,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         # Log metrics
         self.log("val_loss", loss, on_epoch=True, sync_dist=True)
         self.log(
-            "val_acc", acc, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True
+            "val_acc", acc, on_step=True, on_epoch=True, sync_dist=True
         )
         metrics = {
             'val_MAE': MAE,
