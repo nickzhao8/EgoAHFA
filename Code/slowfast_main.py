@@ -27,6 +27,7 @@ parser.add_argument("--ordinal", default=False, action=argparse.BooleanOptionalA
 parser.add_argument("--ordinal_strat", default=None, type=str)
 parser.add_argument("--transfer_learning", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--sparse_temporal_sampling", default=True, action=argparse.BooleanOptionalAction)
+parser.add_argument("--results_path", default=None, type=str)
 
 # LOSO-CV Parameters
 parser.add_argument("--start_sub", default=1, type=int)
@@ -131,9 +132,11 @@ def main():
 
         archtype = 'transfer' if args.transfer_learning else 'scratch'
         if args.ordinal: archtype = archtype + '_ordinal'
-        args.results_path = f'Results/{args.arch}_{archtype}_{date}'
+        if args.results_path is None:
+            args.results_path = f'Results/{args.arch}_{archtype}_{date}'
+        exp_name = args.results_path.split('/')[-1]
         args.logger                         = TensorBoardLogger(args.log_root, 
-                                                                name=f"{args.arch}_{archtype}_{date}",
+                                                                name=exp_name,
                                                                 version=f"{args.val_sub}_{date}")
         # DEBUG: start at later sub
         if args.skip_sub is not None: 
@@ -150,7 +153,7 @@ def main():
                                   GRASSP_classes.GRASSPValidationCallback(),
                                   EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=args.patience)])
 
-        print(f"=== TRAINING RUN: {args.start_sub} {args.arch} {archtype} ord_strat: {args.ordinal_strat} \
+        print(f"=== TRAINING. Start: {args.start_sub} End: {args.end_sub} Exp.Name: {exp_name} \
 sparse: {args.sparse_temporal_sampling}  ===")
         trainer.fit(classification_module, datamodule)
         # == Resume from checkpoint ==
@@ -159,7 +162,7 @@ sparse: {args.sparse_temporal_sampling}  ===")
         # trainer.fit(classification_module, datamodule, ckpt_path=ckpt_path)
 
         # Save checkpoint
-        model_dir = Path('Models', f'{args.arch}_{archtype}_{date}')
+        model_dir = Path('Models', exp_name)
         os.makedirs(model_dir, exist_ok=True)
         model_path = Path(model_dir, f"{args.arch}_{args.val_sub}.ckpt")
         trainer.save_checkpoint(model_path)
