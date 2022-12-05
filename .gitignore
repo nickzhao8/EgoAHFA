@@ -1,5 +1,6 @@
 Results/
 
+*.tmp
 *.pyc
 
 #Cluster output

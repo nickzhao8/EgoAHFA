@@ -32,12 +32,12 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         self.val_MAE = torchmetrics.MeanAbsoluteError()
         self.val_MSE = torchmetrics.MeanSquaredError(squared=True)
         self.val_RMSE = torchmetrics.MeanSquaredError(squared=False)
-        self.val_microPrecision = torchmetrics.Precision(average='micro', num_classes=self.args.num_classes)
-        self.val_macroPrecision = torchmetrics.Precision(average='macro', num_classes=self.args.num_classes)
-        self.val_microRecall = torchmetrics.Recall(average='micro', num_classes=self.args.num_classes)
-        self.val_macroRecall = torchmetrics.Recall(average='macro', num_classes=self.args.num_classes)
-        self.val_microF1 = torchmetrics.F1Score(average='micro', num_classes=self.args.num_classes)
-        self.val_macroF1 = torchmetrics.F1Score(average='macro', num_classes=self.args.num_classes)
+        self.val_microPrecision = torchmetrics.Precision(average='micro', num_classes=self.args.num_classes+1)
+        self.val_macroPrecision = torchmetrics.Precision(average='macro', num_classes=self.args.num_classes+1)
+        self.val_microRecall = torchmetrics.Recall(average='micro', num_classes=self.args.num_classes+1)
+        self.val_macroRecall = torchmetrics.Recall(average='macro', num_classes=self.args.num_classes+1)
+        self.val_microF1 = torchmetrics.F1Score(average='micro', num_classes=self.args.num_classes+1)
+        self.val_macroF1 = torchmetrics.F1Score(average='macro', num_classes=self.args.num_classes+1)
 
         self.sanity_check = False
         self.val_preds = []
