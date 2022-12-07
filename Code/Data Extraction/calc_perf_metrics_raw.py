@@ -14,7 +14,7 @@ from torchmetrics.functional import mean_absolute_error, mean_squared_error
 from filename_aggr_pred import filename_aggr_pred
 
 # exp_name = 'mvit_08_23_14'
-exp_name = 'SLOWFAST_SCRATCH_NOORD_SPARSE'
+exp_name = 'SLOWFAST_TRANSFER_ORDINAL_SPARSE'
 distr = False
 # exp_name = 'slowfast_scratch_09_29_17'
 if distr:   results_path = Path(r'M:\Wearable Hand Monitoring\CODE AND DOCUMENTATION\Nick Z\Cluster_output\Results', exp_name, 'Raw')
@@ -44,6 +44,9 @@ top_metrics = {}
 top_raws = {}
 top_aggr_metrics = {}
 top_aggr_raws = {}
+top_aggr_errors = {}
+task_data = {}
+task_metrics = {}
 
 total_MAE = []
 total_acc = []
@@ -58,7 +61,6 @@ for filename in results_files:
         top_metrics[sub] = {}
         top_raws[sub] = {}
         top_aggr_metrics[sub] = {}
-        top_aggr_raws[sub] = {}
     classes = os.listdir(Path('D:\\zhaon\\Datasets\\Video Segments', sub))
     with open(Path(results_path, filename), 'r') as file:
         if distr:
@@ -153,15 +155,39 @@ for filename in results_files:
             top_aggr_metrics[sub]['weighted_recall'] = aggr_weighted_recall.item()
             top_aggr_metrics[sub]['weighted_precision'] = aggr_weighted_precision.item()
             top_aggr_metrics[sub]['epoch'] = epoch
-            top_aggr_raws['preds'] = data['preds']
-            top_aggr_raws['target'] = data['target']
-            top_aggr_raws['filenames'] = filedata
+            top_aggr_raws[sub] = filedata
+            top_aggr_errors[sub] = (aggr_target - aggr_preds).tolist()
 
         #import pdb; pdb.set_trace()
         # print(filename, pred_metrics[filename])
 
         total_MAE.append(pred_metrics[filename]['MAE'])
         total_acc.append(pred_metrics[filename]['accuracy'])
+
+# Per-task data
+for sub in top_aggr_raws:
+    for file in top_aggr_raws[sub]:
+        task = top_aggr_raws[sub][file]['task']
+        if distr: task = '_'.join(task.split('_')[2:])      # Fix task naming discrepancy in Linux
+        task = task.replace('_'+task.split('_')[-1], '')    # Remove number suffix
+        if task not in task_data:
+            task_data[task] = {'pred_mode':[], 'pred_mean':[], 'target':[],}
+            task_metrics[task] = {}
+        task_data[task]['pred_mode'].append(top_aggr_raws[sub][file]['pred_mode'])
+        task_data[task]['pred_mean'].append(top_aggr_raws[sub][file]['pred_mean'])
+        task_data[task]['target'].append(top_aggr_raws[sub][file]['target'])
+# Calculate per-task metrics
+for task in task_data:
+    task_data[task]['pred_mode'] = torch.Tensor(task_data[task]['pred_mode']).int()
+    task_data[task]['target'] = torch.Tensor(task_data[task]['target']).int()
+    task_metrics[task]['accuracy'] = accuracy(task_data[task]['pred_mode'], task_data[task]['target']).item()
+    task_metrics[task]['MAE'] = mean_absolute_error(task_data[task]['pred_mode'], task_data[task]['target']).item()
+    task_metrics[task]['macro_f1'] = f1_score(task_data[task]['pred_mode'], task_data[task]['target'], average='macro', num_classes=6).item()
+    task_metrics[task]['macro_recall'] = recall(task_data[task]['pred_mode'], task_data[task]['target'], average='macro', num_classes=6).item()
+    task_metrics[task]['macro_precision'] = precision(task_data[task]['pred_mode'], task_data[task]['target'], average='macro', num_classes=6).item()
+    task_metrics[task]['weighted_f1'] = f1_score(task_data[task]['pred_mode'], task_data[task]['target'], average='weighted', num_classes=6).item()
+    task_metrics[task]['weighted_recall'] = recall(task_data[task]['pred_mode'], task_data[task]['target'], average='weighted', num_classes=6).item()
+    task_metrics[task]['weighted_precision'] = precision(task_data[task]['pred_mode'], task_data[task]['target'], average='weighted', num_classes=6).item()
     
 # pprint(top_metrics)
 print('total acc: ', torch.mean(torch.tensor(total_acc)))
@@ -201,15 +227,36 @@ aggr_metric_table = pd.concat([aggr_metric_table, pd.DataFrame(aggr_avg_row,inde
 aggr_savefile = Path(savepath, f'{exp_name}_AggrTopMetrics.csv')
 aggr_metric_table.to_csv(aggr_savefile)
 
+## Save Per-TASK metrics to csv
+task_metric_table = pd.DataFrame(task_metrics).T
+task_avg_row = {'accuracy':task_metric_table['accuracy'].mean(),
+                'MAE':task_metric_table['MAE'].mean(),
+                'macro_f1':task_metric_table['macro_f1'].mean(),
+                'macro_recall':task_metric_table['macro_recall'].mean(),
+                'macro_precision':task_metric_table['macro_precision'].mean(),
+                'weighted_f1':task_metric_table['weighted_f1'].mean(),
+                'weighted_recall':task_metric_table['weighted_recall'].mean(),
+                'weighted_precision':task_metric_table['weighted_precision'].mean(),
+                }
+task_metric_table = pd.concat([task_metric_table, pd.DataFrame(task_avg_row, index=['avg'])])
+task_savefile = Path(savepath, f'{exp_name}_TaskAggrMetrics.csv')
+task_metric_table.to_csv(task_savefile)
+
+## Save top aggr errors to csv
+error_table = pd.DataFrame.from_dict(top_aggr_errors, orient='index').T
+error_total_row = pd.DataFrame(error_table.stack().values, columns=['total'])
+error_table = pd.concat([error_table, error_total_row])
+error_savefile = Path(savepath, f'{exp_name}_TopAggrErrors.csv')
+error_table.to_csv(error_savefile)
 
     # import pdb; pdb.set_trace()
     # print(pred_results[filename])
 
 ### PLOT CONFUSION MATRIX ###
-for sub in top_raws:
-    total_preds.extend(top_raws[sub]['preds'])
-    total_target.extend(top_raws[sub]['target'])
-ConfusionMatrixDisplay.from_predictions(total_target, total_preds, normalize='all')
+# for sub in top_raws:
+#     total_preds.extend(top_raws[sub]['preds'])
+#     total_target.extend(top_raws[sub]['target'])
+# ConfusionMatrixDisplay.from_predictions(total_target, total_preds, normalize='all')
 
 ## PLOT DATA TABLE ### 
 # rounded_table = aggr_metric_table.round(decimals=3)
@@ -221,5 +268,5 @@ ConfusionMatrixDisplay.from_predictions(total_target, total_preds, normalize='al
 # table.set_fontsize(10)
 # table.scale(1,1.2)
 
-plt.show()
+# plt.show()
 
