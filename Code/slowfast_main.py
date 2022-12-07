@@ -32,7 +32,7 @@ parser.add_argument("--results_path", default=None, type=str)
 # LOSO-CV Parameters
 parser.add_argument("--start_sub", default=1, type=int)
 parser.add_argument("--end_sub", default=9, type=int)
-parser.add_argument("--skip_sub", default=None, nargs='+', type=int)
+parser.add_argument("--only_sub", default=None, nargs='+', type=int)
 
 # Learning Rate Parameters
 parser.add_argument("--lr"          , default=float(1.6e-3) , type=float) 
@@ -138,10 +138,10 @@ def main():
         args.logger                         = TensorBoardLogger(args.log_root, 
                                                                 name=exp_name,
                                                                 version=f"{args.val_sub}_{date}")
-        # DEBUG: start at later sub
-        if args.skip_sub is not None: 
-            skipsubs = [f"Sub{x}" for x in args.skip_sub]
-            if subdir in skipsubs: continue
+        # Only use these subs; skip everything else (subset training)
+        if args.only_sub is not None: 
+            subset = [f"Sub{x}" for x in args.only_sub]
+            if subdir not in subset: continue
 
         datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
         # datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
