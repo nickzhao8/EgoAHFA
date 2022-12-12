@@ -26,7 +26,8 @@ def gen_annotations(dataset_root,
                     start_frames = i*clip_stride + 1
                     end_frames = start_frames + clip_length - 1
                     pathname = str(Path(score,task))
-                    f.write(f'{pathname} {start_frames} {end_frames} {score}\n')
+                    # Shift scores down with -1, since score 0 was removed. 
+                    f.write(f'{pathname} {start_frames} {end_frames} {int(score)-1}\n')
         f.close()
 
 def gen_sparse_annotations(dataset_root,
@@ -54,7 +55,8 @@ def gen_sparse_annotations(dataset_root,
                     pathname = str(Path(score, video))
                     # Re-sample video in order to balance the dataset
                     for _ in range(samples_per_video):
-                        f.write(f'{pathname} {start_frame} {end_frame} {score}\n')
+                        # Shift scores down with -1, since score 0 was removed. 
+                        f.write(f'{pathname} {start_frame} {end_frame} {int(score)-1}\n')
     
 
 def plot_video(rows, cols, frame_list, plot_width, plot_height, title: str):
