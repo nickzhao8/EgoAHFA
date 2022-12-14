@@ -19,4 +19,6 @@ export PYTHONFAULTHANDLER=1
 source /cluster/home/t63164uhn/.bashrc
 conda activate /cluster/home/t63164uhn/miniconda3/envs/pt1
 cd /cluster/home/t63164uhn/Code/EgoAHFA/
+export NCCL_NSOCKS_PERTHREAD=4
+export NCCL_SOCKET_NTHREADS=2
 python /cluster/home/t63164uhn/Code/EgoAHFA/Code/slowfast_main.py $@

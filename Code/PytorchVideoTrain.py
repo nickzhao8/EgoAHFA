@@ -141,6 +141,12 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             self.logger.experiment.add_histogram(name, params, self.current_epoch)
         return super().on_train_epoch_end()
 
+    def on_train_end(self) -> None:
+        # Print whether static_graph can be used
+        ddp_logging_data = self.model._get_ddp_logging_data()
+        print("Static graph:",ddp_logging_data.get("can_set_static_graph"))
+        return super().on_train_end()
+
     def forward(self, x):
         return self.model(x)
     
