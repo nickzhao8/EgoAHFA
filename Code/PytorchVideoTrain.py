@@ -14,9 +14,11 @@ import pytorchvideo.data
 import pytorchvideo.models
 import torch
 import torch.nn.functional as F
+from torchvision.models.video.mvit import mvit_v2_s
 from pytorch_lightning.callbacks import LearningRateMonitor
 import torchmetrics
 from lightning_classes.GRASSP_classes import GRASSPDataModule
+from lightning_classes.mvit import build_mvit_v2_b
 from coral_pytorch.losses import corn_loss, coral_loss
 from coral_pytorch.layers import CoralLayer
 from coral_pytorch.dataset import corn_label_from_logits, levels_from_labelbatch, proba_to_label
@@ -88,33 +90,39 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 num_features = self.model.blocks[6].proj.in_features
                 self.model.blocks[6].proj = CoralLayer(size_in=num_features, num_classes=self.args.num_classes)
 
-        elif self.args.arch == 'mvit':
+        elif self.args.arch == 'mvit_v2_b':
+            self.model = build_mvit_v2_b(
+                spatial_size = self.args.video_crop_size,
+                temporal_size = self.args.num_frames,
+            )
             if self.args.transfer_learning:
-                self.model = torch.hub.load('facebookresearch/pytorchvideo', model='mvit_base_16x4', pretrained=True)
-                # Freeze model
+                # Load state_dict
+                state_dict = torch.load(self.args.pretrained_state_dict)
+                self.model.load_state_dict(state_dict, strict=True)
+                # Save pointers to layers to unfreeze
+                last_block_mlp  = self.model.blocks[-1].mlp
+                last_block_sd   = self.model.blocks[-1].stochastic_depth
+                model_norm      = self.model.norm
+                model_head      = self.model.head
+                # Freeze layers
                 for param in self.model.parameters():
                     param.requires_grad = False
-                num_features = self.model.head.proj.in_features
-                self.model.head.proj = torch.nn.Linear(num_features, self.args.num_classes)
-            else:
-                self.model = pytorchvideo.models.vision_transformers.create_multiscale_vision_transformers(
-                spatial_size=self.args.video_crop_size,
-                temporal_size=self.args.num_frames,
-                embed_dim_mul           = self.args.mvit_embed_dim_mul,
-                atten_head_mul          = self.args.mvit_atten_head_mul,
-                pool_q_stride_size      = self.args.mvit_pool_q_stride_size,
-                pool_kv_stride_adaptive = self.args.mvit_pool_kv_stride_adaptive,
-                pool_kvq_kernel         = self.args.mvit_pool_kvq_kernel,
-                head_num_classes        = self.args.num_classes,
-                )
+                # Unfreeze saved last layers
+                for param in last_block_mlp.parameters(): param.requires_grad = True
+                for param in last_block_sd.parameters(): param.requires_grad = True
+                for param in model_norm.parameters(): param.requires_grad = True
+                for param in model_head.parameters(): param.requires_grad = True
+            # Construct last FC layer
+            num_features = self.model.head[1].in_features
+            self.model.head[1] = torch.nn.Linear(num_features, self.args.num_classes)
 
             ## If using CORN Ordinal regression, replace final layer with -1 output nodes.
             if self.args.ordinal and self.args.ordinal_strat == 'CORN':
-                num_features = self.model.head.proj.in_features
-                self.model.head.proj = torch.nn.Linear(num_features, self.args.num_classes-1)
+                num_features = self.model.head[1].in_features
+                self.model.head[1] = torch.nn.Linear(num_features, self.args.num_classes-1)
             if self.args.ordinal and self.args.ordinal_strat == 'CORAL':
-                num_features = self.model.blocks[6].proj.in_features
-                self.model.blocks[6].proj = CoralLayer(size_in=num_features, num_classes=self.args.num_classes)
+                num_features = self.model.head[1].in_features
+                self.model.head[1] = CoralLayer(size_in=num_features, num_classes=self.args.num_classes)
 
             self.batch_key = "video"
         else:
@@ -318,8 +326,8 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 pg["lr"] = lr_scale * self.args.lr
 
     def configure_optimizers(self):
-        if self.args.arch == 'mvit':
-            optimizer = torch.optim.AdamW(
+        if self.args.arch == 'mvit_v2_b':
+            optimizer = torch.optim.SGD(
                 self.parameters(),
                 lr=self.args.lr,
                 weight_decay=self.args.weight_decay,
@@ -339,8 +347,6 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             )
         return [optimizer], [scheduler]
     
-    # def ordinal
-
 def setup_logger():
     ch = logging.StreamHandler()
     formatter = logging.Formatter("\n%(asctime)s [%(levelname)s] %(name)s: %(message)s")

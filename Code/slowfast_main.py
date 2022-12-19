@@ -27,6 +27,7 @@ parser.add_argument("--arch", default=None, required=True, type=str)
 parser.add_argument("--ordinal", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--ordinal_strat", default=None, type=str)
 parser.add_argument("--transfer_learning", default=False, action=argparse.BooleanOptionalAction)
+parser.add_argument("--pretrained_state_dict", default='Models/slowfast/slowfast_5class.pyth', type=str)
 parser.add_argument("--sparse_temporal_sampling", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--results_path", default=None, type=str)
 
@@ -103,7 +104,6 @@ args.log_root                       = 'Logs'
 args.log_every_n_steps              = 20
 
 # Model-specific Parameters
-args.pretrained_state_dict          = 'Models/slowfast/slowfast_5class.pyth'
 args.slowfast_alpha                 = int(4)
 args.slowfast_beta                  = float(1/8)
 args.slowfast_fusion_conv_channel_ratio = int(2)
