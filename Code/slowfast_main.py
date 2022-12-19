@@ -34,7 +34,7 @@ parser.add_argument("--results_path", default=None, type=str)
 # LOSO-CV Parameters
 parser.add_argument("--start_sub", default=1, type=int)
 parser.add_argument("--end_sub", default=9, type=int)
-parser.add_argument("--only_sub", default=None, nargs='+', type=int)
+parser.add_argument("--only_sub", default=None, action='append', type=int)
 
 # Learning Rate Parameters
 parser.add_argument("--lr"          , default=float(1.6e-3) , type=float) 
@@ -69,7 +69,7 @@ parser.add_argument("--profiler_type"    , default = None       , type=none_int_
 args, _  =  parser.parse_known_args()
 
 # Default Parameters
-args.on_cluster                     = True
+args.on_cluster                     = False
 args.job_name                       = "ptv_video_classification"
 args.working_directory              = "."
 args.partition                      = "gpu"
@@ -95,7 +95,7 @@ else:
 # Pytorch Lightning Parameters
 args.accelerator                    = 'gpu'
 args.devices                        = -1
-args.strategy                       = DDPStrategy(find_unused_parameters=False)
+# args.strategy                       = DDPStrategy(find_unused_parameters=False)
 args.num_nodes                      = 1
 args.replace_sampler_ddp            = False
 args.precision                      = 16
