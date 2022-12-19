@@ -178,6 +178,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 loss = corn_loss(y_hat, batch['label'], num_classes=self.args.num_classes)
             elif self.args.ordinal_strat == 'CORAL':
                 levels = levels_from_labelbatch(batch['label'], num_classes=self.args.num_classes)
+                levels = levels.to(y_hat.device)
                 loss = coral_loss(y_hat, levels)
             else:
                 loss = self.ordinal_loss(y_hat, batch["label"])
@@ -218,6 +219,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 pred_labels = corn_label_from_logits(y_hat)
             elif self.args.ordinal_strat == 'CORAL':
                 levels = levels_from_labelbatch(batch['label'], num_classes=self.args.num_classes)
+                levels = levels.to(y_hat.device)
                 loss = coral_loss(y_hat, levels)
                 pred_labels = proba_to_label(torch.sigmoid(y_hat))
             else:
