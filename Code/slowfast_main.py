@@ -69,7 +69,7 @@ parser.add_argument("--profiler_type"    , default = None       , type=none_int_
 args, _  =  parser.parse_known_args()
 
 # Default Parameters
-args.on_cluster                     = False
+args.on_cluster                     = True
 args.job_name                       = "ptv_video_classification"
 args.working_directory              = "."
 args.partition                      = "gpu"
@@ -95,7 +95,7 @@ else:
 # Pytorch Lightning Parameters
 args.accelerator                    = 'gpu'
 args.devices                        = -1
-# args.strategy                       = DDPStrategy(find_unused_parameters=False)
+args.strategy                       = DDPStrategy(find_unused_parameters=False)
 args.num_nodes                      = 1
 args.replace_sampler_ddp            = False
 args.precision                      = 16
