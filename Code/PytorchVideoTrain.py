@@ -151,7 +151,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
 
     def on_train_end(self) -> None:
         # Print whether static_graph can be used
-        ddp_logging_data = self.model._get_ddp_logging_data()
+        ddp_logging_data = self.trainer.model._get_ddp_logging_data()
         print("Static graph:",ddp_logging_data.get("can_set_static_graph"))
         return super().on_train_end()
 
