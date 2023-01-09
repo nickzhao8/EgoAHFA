@@ -7,6 +7,7 @@ from pytorch_lightning.profiler import AdvancedProfiler, PyTorchProfiler
 from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping, TQDMProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.strategies import DDPStrategy
+from pytorch_lightning.accelerators import CUDAAccelerator
 import os
 from pathlib import Path
 import json
@@ -94,8 +95,8 @@ else:
 
 # Pytorch Lightning Parameters
 args.accelerator                    = 'gpu'
-args.devices                        = -1
-args.strategy                       = DDPStrategy(find_unused_parameters=False)
+args.devices                        = 4
+args.strategy                       = 'ddp'
 args.num_nodes                      = 1
 args.replace_sampler_ddp            = False
 args.precision                      = 16

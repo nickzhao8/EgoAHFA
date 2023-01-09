@@ -6,7 +6,7 @@ sbatch -A kite_gpu <<EOT
 #SBATCH --nodes=1
 #SBATCH -t 3-00:00:00
 #SBATCH --mem-per-gpu=32G
-#SBATCH --gres=gpu:p100:4
+#SBATCH --gres=gpu:v100:4
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=9
 #SBATCH --job-name=sbatch_EgoAHFA_classification
