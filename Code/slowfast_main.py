@@ -6,6 +6,8 @@ import pytorch_lightning
 from pytorch_lightning.profiler import AdvancedProfiler, PyTorchProfiler
 from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping, TQDMProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.strategies import DDPStrategy
+from pytorch_lightning.accelerators import CUDAAccelerator
 import os
 from pathlib import Path
 import json
@@ -33,7 +35,7 @@ parser.add_argument("--results_path", default=None, type=str)
 # LOSO-CV Parameters
 parser.add_argument("--start_sub", default=1, type=int)
 parser.add_argument("--end_sub", default=9, type=int)
-parser.add_argument("--only_sub", default=None, nargs='+', type=int)
+parser.add_argument("--only_sub", default=None, action='append', type=int)
 
 # Learning Rate Parameters
 parser.add_argument("--lr"          , default=float(1.6e-3) , type=float) 

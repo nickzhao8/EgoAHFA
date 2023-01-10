@@ -16,7 +16,8 @@ import torch
 import torch.nn.functional as F
 from torchvision.models.video.mvit import mvit_v2_s
 from pytorch_lightning.callbacks import LearningRateMonitor
-import torchmetrics
+from torchmetrics.classification import MulticlassAccuracy, MulticlassPrecision, MulticlassRecall, MulticlassF1Score
+from torchmetrics import MeanAbsoluteError, MeanSquaredError
 from lightning_classes.GRASSP_classes import GRASSPDataModule
 from lightning_classes.mvit import build_mvit_v2_b
 from coral_pytorch.losses import corn_loss, coral_loss
@@ -28,18 +29,18 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
     def __init__(self, args=None):
         self.args = args
         super().__init__()
-        self.train_accuracy = torchmetrics.Accuracy()
-        self.train_MAE = torchmetrics.MeanAbsoluteError()
-        self.val_accuracy = torchmetrics.Accuracy()
-        self.val_MAE = torchmetrics.MeanAbsoluteError()
-        self.val_MSE = torchmetrics.MeanSquaredError(squared=True)
-        self.val_RMSE = torchmetrics.MeanSquaredError(squared=False)
-        self.val_microPrecision = torchmetrics.Precision(average='micro', num_classes=self.args.num_classes+1)
-        self.val_macroPrecision = torchmetrics.Precision(average='macro', num_classes=self.args.num_classes+1)
-        self.val_microRecall = torchmetrics.Recall(average='micro', num_classes=self.args.num_classes+1)
-        self.val_macroRecall = torchmetrics.Recall(average='macro', num_classes=self.args.num_classes+1)
-        self.val_microF1 = torchmetrics.F1Score(average='micro', num_classes=self.args.num_classes+1)
-        self.val_macroF1 = torchmetrics.F1Score(average='macro', num_classes=self.args.num_classes+1)
+        self.train_accuracy = MulticlassAccuracy(num_classes=self.args.num_classes+1)
+        self.train_MAE = MeanAbsoluteError()
+        self.val_accuracy = MulticlassAccuracy(num_classes=self.args.num_classes+1)
+        self.val_MAE = MeanAbsoluteError()
+        self.val_MSE = MeanSquaredError(squared=True)
+        self.val_RMSE = MeanSquaredError(squared=False)
+        self.val_microPrecision = MulticlassPrecision(average='micro', num_classes=self.args.num_classes+1)
+        self.val_macroPrecision = MulticlassPrecision(average='macro', num_classes=self.args.num_classes+1)
+        self.val_microRecall = MulticlassRecall(average='micro', num_classes=self.args.num_classes+1)
+        self.val_macroRecall = MulticlassRecall(average='macro', num_classes=self.args.num_classes+1)
+        self.val_microF1 = MulticlassF1Score(average='micro', num_classes=self.args.num_classes+1)
+        self.val_macroF1 = MulticlassF1Score(average='macro', num_classes=self.args.num_classes+1)
 
         self.sanity_check = False
         self.val_preds = []
@@ -148,6 +149,12 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         for name, params in self.named_parameters():
             self.logger.experiment.add_histogram(name, params, self.current_epoch)
         return super().on_train_epoch_end()
+
+    def on_train_end(self) -> None:
+        # Print whether static_graph can be used
+        ddp_logging_data = self.trainer.model._get_ddp_logging_data()
+        print("Static graph:",ddp_logging_data.get("can_set_static_graph"))
+        return super().on_train_end()
 
     def forward(self, x):
         return self.model(x)
