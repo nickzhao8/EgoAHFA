@@ -72,12 +72,13 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 # Save pointers to layers to unfreeze
                 block4_pathway0_res_block2 = self.model.blocks[4].multipathway_blocks[0].res_blocks[2]
                 block4_pathway1_res_block2 = self.model.blocks[4].multipathway_blocks[1].res_blocks[2]
-                # Freeze params
-                for param in self.model.parameters():
-                    param.requires_grad = False
-                # Unfreeze saved layers
-                for param in block4_pathway0_res_block2.parameters(): param.requires_grad = True
-                for param in block4_pathway1_res_block2.parameters(): param.requires_grad = True
+                if not self.args.finetune:
+                    # Freeze params
+                    for param in self.model.parameters():
+                        param.requires_grad = False
+                    # Unfreeze saved layers
+                    for param in block4_pathway0_res_block2.parameters(): param.requires_grad = True
+                    for param in block4_pathway1_res_block2.parameters(): param.requires_grad = True
                 # Construct last fc layer
                 num_features = self.model.blocks[6].proj.in_features
                 self.model.blocks[6].proj = torch.nn.Linear(num_features, self.args.num_classes)
@@ -105,14 +106,15 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 last_block_sd   = self.model.blocks[-1].stochastic_depth
                 model_norm      = self.model.norm
                 model_head      = self.model.head
-                # Freeze layers
-                for param in self.model.parameters():
-                    param.requires_grad = False
-                # Unfreeze saved last layers
-                for param in last_block_mlp.parameters(): param.requires_grad = True
-                for param in last_block_sd.parameters(): param.requires_grad = True
-                for param in model_norm.parameters(): param.requires_grad = True
-                for param in model_head.parameters(): param.requires_grad = True
+                if not self.args.finetune:
+                    # Freeze layers
+                    for param in self.model.parameters():
+                        param.requires_grad = False
+                    # Unfreeze saved last layers
+                    for param in last_block_mlp.parameters(): param.requires_grad = True
+                    for param in last_block_sd.parameters(): param.requires_grad = True
+                    for param in model_norm.parameters(): param.requires_grad = True
+                    for param in model_head.parameters(): param.requires_grad = True
             # Construct last FC layer
             num_features = self.model.head[1].in_features
             self.model.head[1] = torch.nn.Linear(num_features, self.args.num_classes)
@@ -150,11 +152,11 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             self.logger.experiment.add_histogram(name, params, self.current_epoch)
         return super().on_train_epoch_end()
 
-    def on_train_end(self) -> None:
-        # Print whether static_graph can be used
-        ddp_logging_data = self.trainer.model._get_ddp_logging_data()
-        print("Static graph:",ddp_logging_data.get("can_set_static_graph"))
-        return super().on_train_end()
+    # def on_train_end(self) -> None:
+    #     # Print whether static_graph can be used
+    #     ddp_logging_data = self.trainer.model._get_ddp_logging_data()
+    #     print("Static graph:",ddp_logging_data.get("can_set_static_graph"))
+    #     return super().on_train_end()
 
     def forward(self, x):
         return self.model(x)
