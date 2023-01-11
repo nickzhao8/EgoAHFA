@@ -139,7 +139,6 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
             transform=Compose(
                 [
                     UniformTemporalSubsample(args.num_frames),
-                    NormalizeVideo(args.video_means, args.video_stds),
                 ]
                 + (
                     [
@@ -161,6 +160,13 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
                         PackPathway(self.args),
                     ] 
                     if self.args.arch == "slowfast"
+                    else []
+                )
+                +(
+                    [
+                        NormalizeVideo(args.video_means, args.video_stds),
+                    ]
+                    if self.args.norm
                     else []
                 )
             ),
