@@ -88,14 +88,14 @@ for filename in results_files:
         data['preds'] = list(itertools.chain.from_iterable(data['preds']))
         data['target'] = list(itertools.chain.from_iterable(data['target']))
 
-        # Remove class 0 from dataset FIXME: Skip if consolidating classes
-        for i in range(data['target'].count(0)):
-            rm_idx = data['target'].index(0)
-            data['preds'].pop(rm_idx)
-            data['target'].pop(rm_idx)
+        # # Remove class 0 from dataset FIXME: Skip if consolidating classes
+        # for i in range(data['target'].count(0)):
+        #     rm_idx = data['target'].index(0)
+        #     data['preds'].pop(rm_idx)
+        #     data['target'].pop(rm_idx)
 
-        preds = torch.tensor(data['preds'])   - 1   # -1 because we are removing class 0
-        target = torch.tensor(data['target']) - 1
+        preds = torch.tensor(data['preds'])   
+        target = torch.tensor(data['target']) 
 
         #pred_metrics[filename]['micro_precision'] = precision(preds, target, average='micro', num_classes=len(classes))
         #pred_metrics[filename]['micro_recall'] = recall(preds, target, average='micro', num_classes=len(classes))
