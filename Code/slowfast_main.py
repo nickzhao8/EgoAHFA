@@ -56,6 +56,7 @@ parser.add_argument("--shuffle"            , default= True                      
 parser.add_argument("--data_root"          , default= r'C:\Users\zhaon\Documents\GRASSP_JPG_FRAMES' , type=str)
 parser.add_argument("--num_segments"       , default= 4                                             , type=int)
 parser.add_argument("--frames_per_segment" , default= 8                                             , type=int)
+parser.add_argument("--norm"               , default=True                                           , action=argparse.BooleanOptionalAction)
 
 # Epoch Parameters
 parser.add_argument("--max_epochs"          , default = 20   , type=int)  
