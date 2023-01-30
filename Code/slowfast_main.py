@@ -47,6 +47,7 @@ parser.add_argument("--warmup"      , default=0             , type=float)
 # Trainer Parameters
 parser.add_argument("--workers"     , default= int(4)       , type=int)
 parser.add_argument("--batch_size"  , default= int(8)       , type=int)
+parser.add_argument("--accumulate_grad_batches", default=int(1), type=int)
 
 ### DATASET parameters ###
 parser.add_argument("--num_frames"         , default= int(32)                                       , type=int)
