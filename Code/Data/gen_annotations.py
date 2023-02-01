@@ -1,12 +1,14 @@
 from pathlib import Path
 import os, math
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import ImageGrid
 
 def gen_annotations(dataset_root,
                     num_frames: int = 16,
                     temporal_stride: int = 4,
                     annotation_filename: str = 'annotation.txt',):
+    '''
+    Generate annotations for VideoFrameDataset. Video samples are taken from the 
+    source videos, which are num_frames long with stride of temporal_stride. 
+    '''
 
     clip_length = num_frames*temporal_stride    # Total number of frames the clip spans. Divide by fps to get length in seconds.
     clip_stride = int(clip_length/2)            # Number of frames between clips
@@ -57,21 +59,6 @@ def gen_sparse_annotations(dataset_root,
                     for _ in range(samples_per_video):
                         # Shift scores down with -1, since score 0 was removed. 
                         f.write(f'{pathname} {start_frame} {end_frame} {int(score)-1}\n')
-    
-
-def plot_video(rows, cols, frame_list, plot_width, plot_height, title: str):
-    fig = plt.figure(figsize=(plot_width, plot_height))
-    grid = ImageGrid(fig, 111,  # similar to subplot(111)
-                     nrows_ncols=(rows, cols),  # creates 2x2 grid of axes
-                     axes_pad=0.3,  # pad between axes in inch.
-                     )
-
-    for index, (ax, im) in enumerate(zip(grid, frame_list)):
-        # Iterating over the grid returns the Axes.
-        ax.imshow(im)
-        ax.set_title(index)
-    plt.suptitle(title)
-    plt.show()
 
 def rename_spaces(root):
     '''
@@ -85,10 +72,3 @@ def rename_spaces(root):
             for task in tasks:
                 if ' ' in task:
                     os.rename(Path(root,subdir,score,task), Path(root,subdir,score,task.replace(' ','_')))
-
-def none_int_or_str(value):
-    if value == 'None':
-        return None
-    elif value.isnumeric():
-        return int(value)
-    return value

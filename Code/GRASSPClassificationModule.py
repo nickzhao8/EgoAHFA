@@ -1,34 +1,32 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
-
-import argparse
-import itertools
 import logging
-import os
 import re
-from pathlib import Path
-from typing import Iterable
-import json
-
 import pytorch_lightning
 import pytorchvideo.data
 import pytorchvideo.models
 import torch
 import torch.nn.functional as F
 from torchvision.models.video.mvit import mvit_v2_s
-from pytorch_lightning.callbacks import LearningRateMonitor
 from torchmetrics.classification import MulticlassAccuracy, MulticlassPrecision, MulticlassRecall, MulticlassF1Score
 from torchmetrics import MeanAbsoluteError, MeanSquaredError
-from lightning_classes.GRASSP_classes import GRASSPDataModule
-from lightning_classes.mvit import build_mvit_v2_b
+from Tools.mvit import build_mvit_v2_b
 from coral_pytorch.losses import corn_loss, coral_loss
 from coral_pytorch.layers import CoralLayer
 from coral_pytorch.dataset import corn_label_from_logits, levels_from_labelbatch, proba_to_label
 
+"""
+GRASSPClassificationModule
 
-class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
+This LightningModule implementation constructs the desired model architecture,
+configures the training/validation loop, calculates metrics, and configures 
+the optimizer. 
+"""
+
+class GRASSPClassificationModule(pytorch_lightning.LightningModule):
     def __init__(self, args=None):
         self.args = args
         super().__init__()
+
+        # Instantiate metrics functions
         self.train_accuracy = MulticlassAccuracy(num_classes=self.args.num_classes+1)
         self.train_MAE = MeanAbsoluteError()
         self.val_accuracy = MulticlassAccuracy(num_classes=self.args.num_classes+1)
@@ -48,6 +46,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         self.val_loss = []
         self.val_tasks = {}
 
+        # Construct desired model architecture
         if self.args.arch == "video_resnet":
             self.model = pytorchvideo.models.resnet.create_resnet(
                 input_channel=3,
@@ -132,13 +131,11 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
             raise Exception(f"{self.args.arch} not supported")
 
     def on_train_epoch_start(self):
-        """
-        For distributed training we need to set the datasets video sampler epoch so
-        that shuffling is done correctly
-        """
+        # For distributed training, manually set sampler epoch to correctly shuffle
         epoch = self.trainer.current_epoch
         if self.trainer._accelerator_connector.is_distributed:
            self.trainer.datamodule.train_sampler.set_epoch(epoch)
+        # Initialize training metrics
         self.train_losses = []
         self.train_accs = []
         self.train_maes = []
@@ -161,6 +158,8 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
     def forward(self, x):
         return self.model(x)
     
+    """
+    DEPRECATED ORDINAL CLASSIFICATION IMPLEMENTATION
     def ordinal_prediction(self, preds):
         # Convert ordinal encoding back to class labels
         ooms = [torch.floor(torch.log10(x)) for x in preds[:,0]]
@@ -176,10 +175,10 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         for i, target in enumerate(targets):
             ordinal_target[i, 0:target+1] = 1
         return F.mse_loss(preds, ordinal_target, reduction='sum')
+    """
         
     def training_step(self, batch, batch_idx):
         x = batch[self.batch_key]
-        # import pdb; pdb.set_trace()
         y_hat = self.model(x)
         # == LOSS == 
         if self.args.ordinal:   
@@ -193,7 +192,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
                 loss = self.ordinal_loss(y_hat, batch["label"])
         else:                   
             loss = F.cross_entropy(y_hat, batch["label"])
-        # Manual logging
+        # Manual logging of training metrics
         if ((batch_idx % self.args.log_every_n_steps) == 0):
             preds = F.softmax(y_hat, dim=-1)
             if self.args.ordinal:
@@ -222,6 +221,7 @@ class VideoClassificationLightningModule(pytorch_lightning.LightningModule):
         x = batch[self.batch_key]
         y_hat = self.model(x)
         preds = F.softmax(y_hat, dim=-1)
+        # Calculate loss and predicted labels
         if self.args.ordinal:   
             if self.args.ordinal_strat == 'CORN':
                 loss = corn_loss(y_hat, batch['label'], num_classes=self.args.num_classes)

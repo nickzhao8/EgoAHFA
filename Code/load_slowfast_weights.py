@@ -1,5 +1,8 @@
 import torch
 import pytorchvideo.models
+"""
+Rename weight/biases of pretrained state dict to match the PytorchVideo model that we use. 
+"""
 
 def change_key(self, old, new):
     for _ in range(len(self)):

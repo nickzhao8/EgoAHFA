@@ -1,6 +1,6 @@
-from lightning_classes import GRASSP_classes
-from lightning_classes.tools import none_int_or_str
-from PytorchVideoTrain import VideoClassificationLightningModule, setup_logger
+from Data import GRASSP_classes
+from Tools.tools import none_int_or_str
+from GRASSPClassificationModule import GRASSPClassificationModule, setup_logger
 import argparse
 import pytorch_lightning
 from pytorch_lightning.profiler import AdvancedProfiler, PyTorchProfiler
@@ -13,17 +13,15 @@ from pathlib import Path
 import json
 from datetime import datetime
 
-#os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
-
+# Static seed for reproducible results
 pytorch_lightning.trainer.seed_everything(seed=1)
-# pytorch_lightning.trainer.seed_everything()
 parser  =  argparse.ArgumentParser(fromfile_prefix_chars='@', conflict_handler='resolve', prefix_chars='--')
 date = datetime.now().strftime("%m_%d_%H")
 
 # Default trainer parameters.
 parser  =  pytorch_lightning.Trainer.add_argparse_args(parser)
 
-# === Argparse Parameters ===
+# === System Parameters ===
 parser.add_argument("--arch", default=None, required=True, type=str)
 parser.add_argument("--ordinal", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--ordinal_strat", default=None, type=str)
@@ -74,7 +72,7 @@ args, _  =  parser.parse_known_args()
 
 # Default Parameters
 args.on_cluster                     = False
-args.job_name                       = "ptv_video_classification"
+args.job_name                       = "GRASSP_Classification"
 args.working_directory              = "."
 args.partition                      = "gpu"
 args.video_path_prefix              = ""
@@ -127,19 +125,18 @@ args.profiler                       = profiler
 def main():
     setup_logger()
 
-    subdirs = os.listdir(args.data_root)
+    # Leave-one-subject-out cross validation
     for i in range(args.start_sub, args.end_sub + 1): # +1 because end_sub is inclusive
-    # if True: # Dont want to unindent im lazy
-    # subdirs = ['Sub2', 'Sub3', 'Sub7', 'Sub9', 'Sub13', 'Sub16']
-    # for subdir in subdirs:
         subdir = f'Sub{i}'
         args.val_sub = subdir
 
+        # Set up experiment name and result output location
         archtype = 'transfer' if args.transfer_learning else 'scratch'
         if args.ordinal: archtype = archtype + '_ordinal'
         if args.results_path is None:
             args.results_path = f'Results/{args.arch}_{archtype}_{date}'
         exp_name = args.results_path.split('/')[-1]
+
         args.logger                         = TensorBoardLogger(args.log_root, 
                                                                 name=exp_name,
                                                                 version=f"{args.val_sub}_{date}")
@@ -149,17 +146,17 @@ def main():
             if subdir not in subset: continue
 
         datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
-        # datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
-        classification_module = VideoClassificationLightningModule(args)
+        classification_module = GRASSPClassificationModule(args)
         trainer = pytorch_lightning.Trainer.from_argparse_args(args)
         trainer.callbacks[0] = TQDMProgressBar(refresh_rate=50) # overwriting progress bar
-        # For some reason including callbacks in args causes a multiprocessing error ¯\_(ツ)_/¯
+        # Including callbacks in args causes a multiprocessing error; append them here.
         trainer.callbacks.extend([LearningRateMonitor(), 
                                   GRASSP_classes.GRASSPValidationCallback(),
                                   EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=args.patience)])
 
         print(f"=== TRAINING. Start: {args.start_sub} End: {args.end_sub} Exp.Name: {exp_name} \
 sparse: {args.sparse_temporal_sampling}  ===")
+        # == RUN TRAINING LOOP == 
         trainer.fit(classification_module, datamodule)
         # == Resume from checkpoint ==
         # ckpt_root = Path('Models','slowfast_transfer_09_23_16')
@@ -172,6 +169,7 @@ sparse: {args.sparse_temporal_sampling}  ===")
         model_path = Path(model_dir, f"{args.arch}_{args.val_sub}.ckpt")
         trainer.save_checkpoint(model_path)
 
+        # == RUN VALIDATION LOOP ==
         metrics = trainer.validate(classification_module, datamodule)
 
         # Save metrics to json

@@ -1,13 +1,9 @@
 from .video_dataset import VideoFrameDataset, ImglistToTensor, VideoRecord
-from .tools import gen_annotations, gen_sparse_annotations
+from .gen_annotations import gen_annotations, gen_sparse_annotations
 import pytorch_lightning
 from pytorch_lightning.callbacks import Callback
 import pytorchvideo.data
-from pytorchvideo.data import LabeledVideoDataset
-from pytorchvideo.data.clip_sampling import ClipSampler
-from pytorchvideo.data.video import VideoPathHandler
 import torch
-from torch import Tensor
 
 from torch.utils.data import DistributedSampler, RandomSampler, ChainDataset, ConcatDataset
 from .transform_classes import PackPathway
@@ -30,7 +26,6 @@ from torchvision.transforms import (
 from torchvideo.transforms import NormalizeVideo
 from typing import Any, Callable, Iterable, Optional, Type, Dict, Tuple, Union, List
 from pathlib import Path
-from PIL import Image
 import json
 import os, gzip
 
@@ -41,6 +36,9 @@ def dumper(obj):
         return str(obj)
 
 class GRASSPValidationCallback(Callback):
+    '''
+    Helper callback for manual logging during validation.
+    '''
     def __init__(self) -> None:
         super().__init__()
     # def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
@@ -85,9 +83,7 @@ class GRASSPValidationCallback(Callback):
         
 class GRASSPDataModule(pytorch_lightning.LightningDataModule):
     """
-    This LightningDataModule implementation constructs a PyTorchVideo Kinetics dataset for both
-    the train and val partitions. It defines each partition's augmentation and
-    preprocessing transforms and configures the PyTorch DataLoaders.
+    Implements LightningDataModule for Adapted GRASSP-annotated ANS-SCI (HomeLab) dataset. 
     """
 
     def __init__(self, args):
@@ -95,28 +91,6 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
         super().__init__()
 
     def _make_transforms(self, mode: str):
-        """
-        ##################
-        # PTV Transforms #
-        ##################
-
-        # Each PyTorchVideo dataset has a "transform" arg. This arg takes a
-        # Callable[[Dict], Any], and is used on the output Dict of the dataset to
-        # define any application specific processing or augmentation. Transforms can
-        # either be implemented by the user application or reused from any library
-        # that's domain specific to the modality. E.g. for video we recommend using
-        # TorchVision, for audio we recommend TorchAudio.
-        #
-        # To improve interoperation between domain transform libraries, PyTorchVideo
-        # provides a dictionary transform API that provides:
-        #   - ApplyTransformToKey(key, transform) - applies a transform to specific modality
-        #   - RemoveKey(key) - remove a specific modality from the clip
-        #
-        # In the case that the recommended libraries don't provide transforms that
-        # are common enough for PyTorchVideo use cases, PyTorchVideo will provide them in
-        # the same structure as the recommended library. E.g. TorchVision didn't
-        # have a RandomShortSideScale video transform so it's been added to PyTorchVideo.
-        """
         if self.args.data_type == "video":
             transform = [
                 self._video_transform(mode),
@@ -129,9 +103,7 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
 
     def _video_transform(self, mode: str):
         """
-        This function contains example transforms using both PyTorchVideo and TorchVision
-        in the same Callable. For 'train' mode, we use augmentations (prepended with
-        'Random'), for 'val' mode we use the respective determinstic function.
+        Define video transforms for data augmentation. 
         """
         args = self.args
         return ApplyTransformToKey(
@@ -174,25 +146,18 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
 
     def train_dataloader(self, **kwargs):
         """
-        Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
+        Define train dataloader for LOSO-CV. 
         """
-        # video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
         video_sampler = RandomSampler
         train_transform = self._make_transforms(mode="train")
         skipped_val = False
         subdirs = Path(self.args.data_root).glob('*')
-        # labeled_video_paths = []
         datasets = []
         for subdir in subdirs:
             if subdir.name.lower() == self.args.val_sub.lower():
                 skipped_val = True
                 continue
             subdir = Path(self.args.data_root,subdir).resolve()
-            # for label in subdir.glob("*"):
-            #     labelpath = Path(subdir, label)
-            #     for vid in labelpath.glob('*'):
-            #         vidpath = Path(labelpath,vid)
-            #         labeled_video_paths.append((str(vidpath), int(str(label).split('\\')[-1])))
             dataset = pytorchvideo.data.labeled_video_dataset(
                 data_path = subdir,
                 clip_sampler=pytorchvideo.data.UniformClipSampler(
@@ -216,7 +181,7 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
 
     def val_dataloader(self, **kwargs):
         """
-        Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
+        Define val dataloader for LOSO-CV.
         """
         video_sampler = RandomSampler
         # video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
@@ -251,84 +216,11 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
             pin_memory=True,
         )
 
-class GRASSPFastDataModule(GRASSPDataModule):
-    def train_dataloader(self, **kwargs):
-        """
-        Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
-        """
-        # video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
-        video_sampler = RandomSampler
-        train_transform = self._make_transforms(mode="train")
-        skipped_val = False
-        subdirs = Path(self.args.data_root).glob('*')
-        # labeled_video_paths = []
-        datasets = []
-        for subdir in subdirs:
-            subname = subdir.name
-            videoclip_file = Path(self.args.vidclip_root, f'{subname}_VideoClip.gz')
-            if subname.lower() == self.args.val_sub.lower():
-                skipped_val = True
-                continue
-            subdir = Path(self.args.data_root,subdir).resolve()
-            dataset = GRASSPDataset(
-                root                = subdir,
-                frames_per_clip     = self.args.num_frames,
-                frame_rate          = self.args.framerate,
-                step_between_clips  = self.args.stride,
-                transform           = train_transform,
-                num_workers         = self.args.workers,
-                videoclip_file      = videoclip_file,
-            )
-            datasets.append(dataset) 
-
-        assert skipped_val == True, "Invalid val_sub; val_sub not found."
-        self.train_dataset = ConcatDataset(datasets)
-        return torch.utils.data.DataLoader(
-            self.train_dataset,
-            shuffle=self.args.shuffle,
-            batch_size=self.args.batch_size,
-            num_workers=self.args.workers,
-            pin_memory=True,
-        )
-
-    def val_dataloader(self, **kwargs):
-        """
-        Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
-        """
-        video_sampler = RandomSampler
-        # video_sampler = DistributedSampler if self.trainer._accelerator_connector.is_distributed else RandomSampler
-        val_transform = self._make_transforms(mode="val")
-        made_val = False
-        subdirs = Path(self.args.data_root).glob('*')
-        #print(f"dataroot = {Path(self.args.data_root)}, valsub = {self.args.val_sub}")
-        for subdir in subdirs:
-            subname = subdir.name
-            videoclip_file = Path(self.args.vidclip_root, f'{subname}_VideoClip.gz')
-            if subname.lower() == self.args.val_sub.lower():
-                made_val = True
-                val_dataset = GRASSPDataset(
-                    root                = subdir,
-                    frames_per_clip     = self.args.num_frames,
-                    frame_rate          = self.args.framerate,
-                    step_between_clips  = self.args.stride,
-                    transform           = val_transform,
-                    num_workers         = self.args.workers,
-                    videoclip_file      = videoclip_file,
-                )
-        assert made_val == True, "Invalid val_sub; val_sub not found."
-
-        return torch.utils.data.DataLoader(
-            val_dataset,
-            shuffle=False,
-            batch_size=self.args.batch_size,
-            num_workers=self.args.workers,
-            pin_memory=True,
-        )
-
 class GRASSPFrameDataModule(GRASSPDataModule):
     def __init__(self, args):
         self.args = args
         subdir = next(iter(Path(self.args.data_root).glob('*')))
+        # If absent, generate annotations that are used for VideoFrameDataset loading. 
         if not os.path.exists(Path(subdir, self.args.annotation_filename)):
             if args.sparse_temporal_sampling:
                 gen_sparse_annotations(dataset_root = self.args.data_root,
@@ -340,14 +232,15 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                                 temporal_stride = self.args.stride,
                                 annotation_filename = self.args.annotation_filename)
         super().__init__(args)
+
     def train_dataloader(self, **kwargs):
         """
-        Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
+        Build train dataset and dataloader for LOSO-CV.
         """
         train_transform = self._make_transforms(mode="train")
         skipped_val = False
         subdirs = Path(self.args.data_root).glob('*')
-        # labeled_video_paths = []
+        # Load all train subjects. Skip val subjects.
         datasets = []
         for subdir in subdirs:
             subname = subdir.name
@@ -356,6 +249,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                 skipped_val = True
                 continue
             subdir = Path(self.args.data_root,subdir).resolve()
+            # Build dataset and append to datasets list. 
             if self.args.sparse_temporal_sampling:
                 dataset = GRASSPFrameDataset(
                     root_path           = subdir,
@@ -377,6 +271,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
             datasets.append(dataset) 
 
         assert skipped_val == True, "Invalid val_sub; val_sub not found."
+        # Build ConcatDataset from datasets list
         train_dataset = ConcatDataset(datasets)
         # Video sampler (for distributed only)
         if self.trainer._accelerator_connector.is_distributed : self.train_sampler = DistributedSampler(train_dataset)
@@ -392,17 +287,18 @@ class GRASSPFrameDataModule(GRASSPDataModule):
 
     def val_dataloader(self, **kwargs):
         """
-        Defines the train DataLoader that the PyTorch Lightning Trainer trains/tests with.
+        Build val dataset and dataloader for LOSO-CV.
         """
         val_transform = self._make_transforms(mode="val")
         made_val = False
         subdirs = Path(self.args.data_root).glob('*')
-        #print(f"dataroot = {Path(self.args.data_root)}, valsub = {self.args.val_sub}")
+        # Skip train subjects. Load val subject.
         for subdir in subdirs:
             subname = subdir.name
             annotation_file = Path(subdir, self.args.annotation_filename)
             if subname.lower() == self.args.val_sub.lower():
                 made_val = True
+                # Build dataset
                 if self.args.sparse_temporal_sampling:
                     ## FIXME: val dataset has random start index selection for sparse sampling
                     val_dataset = GRASSPFrameDataset(
@@ -433,69 +329,15 @@ class GRASSPFrameDataModule(GRASSPDataModule):
             pin_memory=True,
         )
 
-class GRASSPDataset(VisionDataset):
-    def __init__(
-        self,
-        root: str,
-        frames_per_clip: int,
-        frame_rate: Optional[int] = None,
-        step_between_clips: int = 1,
-        transform: Optional[Callable] = None,
-        extensions: Tuple[str, ...] = ("mp4"),
-        num_workers: int = 1,
-        videoclip_file: str = None,
-        _video_width: int = 0,
-        _video_height: int = 0,
-    ) -> None:
-
-        self.extensions = extensions
-
-        self.root = root
-
-        super().__init__(self.root)
-
-        self.classes, class_to_idx = find_classes(self.root)
-        self.samples = make_dataset(self.root, class_to_idx, extensions, is_valid_file=None)
-        video_list = [x[0] for x in self.samples]
-        if videoclip_file is not None:
-            self.video_clips = torch.load(gzip.GzipFile(videoclip_file))
-        else:
-            self.video_clips = VideoClips(
-                video_list,
-                frames_per_clip,
-                step_between_clips,
-                frame_rate,
-                num_workers=num_workers,
-                _video_width=_video_width,
-                _video_height=_video_height,
-            )
-        self.transform = transform
-
-    @property
-    def metadata(self) -> Dict[str, Any]:
-        return self.video_clips.metadata
-
-    def __len__(self) -> int:
-        return self.video_clips.num_clips()
-
-    def __getitem__(self, idx: int) -> Dict[str, Any]:
-        video, audio, info, video_idx = self.video_clips.get_clip(idx)
-        video = video.permute(3,0,1,2)
-        label = self.samples[video_idx][1]
-        clip_dict = {
-            'video':video.float(),
-            'video_name':self.samples[video_idx][0],
-            'video_index':video_idx,
-            'clip_index':idx,
-            'label':label,
-        }
-
-        if self.transform is not None:
-            clip_dict = self.transform(clip_dict)
-
-        return clip_dict
-
 class GRASSPFrameDataset (VideoFrameDataset):
+    """
+    Implementation of VideoFrameDataset to work with ANS-SCI dataset and GRASSPClassificationModule. 
+    Main change is to always output a clip dict with the following keys:
+    1. video        -->     tensor containing video frames
+    2. video name   -->     name of video, including task name
+    3. clip index  
+    4. label        -->     ground truth label
+    """
     def __init__(self,
                 root_path: str,
                 annotationfile_path: str,
@@ -510,16 +352,6 @@ class GRASSPFrameDataset (VideoFrameDataset):
         """
         For video with id idx, loads self.NUM_SEGMENTS * self.FRAMES_PER_SEGMENT
         frames from evenly chosen locations across the video.
-
-        Args:
-            idx: Video sample index.
-        Returns:
-            A tuple of (video, label). Label is either a single
-            integer or a list of integers in the case of multiple labels.
-            Video is either 1) a list of PIL images if no transform is used
-            2) a batch of shape (NUM_IMAGES x CHANNELS x HEIGHT x WIDTH) in the range [0,1]
-            if the transform "ImglistToTensor" is used
-            3) or anything else if a custom transform is used.
         """
         record: VideoRecord = self.video_list[idx]
 
@@ -529,19 +361,8 @@ class GRASSPFrameDataset (VideoFrameDataset):
 
     def _get(self, record: VideoRecord, frame_start_indices: 'np.ndarray[int]', idx: int) -> Dict[str, Any]:
         """
-        Loads the frames of a video at the corresponding
-        indices.
-
-        Args:
-            record: VideoRecord denoting a video sample.
-            frame_start_indices: Indices from which to load consecutive frames from.
-        Returns:
-            A tuple of (video, label). Label is either a single
-            integer or a list of integers in the case of multiple labels.
-            Video is either 1) a list of PIL images if no transform is used
-            2) a batch of shape (NUM_IMAGES x CHANNELS x HEIGHT x WIDTH) in the range [0,1]
-            if the transform "ImglistToTensor" is used
-            3) or anything else if a custom transform is used.
+        Loads the frames of a video at the corresponding indices. 
+        Returns clip dict with video, video_name, clip_index, and label. 
         """
 
         frame_start_indices = frame_start_indices + record.start_frame

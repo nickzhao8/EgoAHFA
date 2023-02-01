@@ -1,6 +1,9 @@
 import torch
 from torchvision.models.video.mvit import mvit_v2_s
-from .lightning_classes.mvit import build_mvit_v2_b, build_mvit_v2_s
+from Tools.mvit import build_mvit_v2_b, build_mvit_v2_s
+"""
+Rename weight/biases of pretrained state dict to match the PytorchVideo model that we use. 
+"""
 
 def change_key(self, old, new):
     for _ in range(len(self)):
