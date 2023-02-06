@@ -1,7 +1,8 @@
-# EgoAHFA
-Egocentric Automated Hand Function Assessment
+# EgoAHFA - Egocentric Automated Hand Function Assessment
 
 
-Note: Make sure to build mvit:
-cd mvit
-python setup.py build develop
+
+Running a train/val loop (LOSO-CV):
+```
+python Code/main.py @Config/local/[config path.cfg]
+```
