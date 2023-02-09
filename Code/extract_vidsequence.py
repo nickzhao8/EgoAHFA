@@ -3,6 +3,14 @@ import ffmpeg
 import os
 from pathlib import Path
 
+"""
+extract_videsequence.py
+
+Reads timestamps and GRASSP scores from xlx file containing annotations. Trim source video
+based on timestamps and save them in corresponding task and score directories. Can also save
+trimmed videos as jpg frames, depending on use case. 
+"""
+
 def vid_process (infile, outfile, start=0, end=0):
 	"""Uses ffmpeg to filter and trim a video. Filters: fps (30), spp (compress), scale (360p)
 	Arguments:
