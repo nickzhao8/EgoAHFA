@@ -22,6 +22,7 @@ date = datetime.now().strftime("%m_%d_%H")
 parser  =  pytorch_lightning.Trainer.add_argparse_args(parser)
 
 # === System Parameters ===
+parser.add_argument("--on_cluster", default=False, action='store_true')
 parser.add_argument("--arch", default=None, required=True, type=str)
 parser.add_argument("--ordinal", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--ordinal_strat", default=None, type=str)
@@ -30,6 +31,12 @@ parser.add_argument("--finetune", default=False, action=argparse.BooleanOptional
 parser.add_argument("--pretrained_state_dict", default='Models/slowfast/slowfast_5class.pyth', type=str)
 parser.add_argument("--sparse_temporal_sampling", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--results_path", default=None, type=str)
+
+# Hardware Parameters
+parser.add_argument("--strategy", default=None, type=str)
+parser.add_argument("--precision", default=16, type=int)
+parser.add_argument("--accelerator", default='gpu', type=str)
+parser.add_argument("--devices", default=-1, type=int)
 
 # LOSO-CV Parameters
 parser.add_argument("--start_sub", default=1, type=int)
@@ -71,7 +78,6 @@ parser.add_argument("--profiler_type"    , default = None       , type=none_int_
 args, _  =  parser.parse_known_args()
 
 # Default Parameters
-args.on_cluster                     = False
 args.job_name                       = "GRASSP_Classification"
 args.working_directory              = "."
 args.partition                      = "gpu"
@@ -94,13 +100,11 @@ if args.sparse_temporal_sampling:
 else:
     args.annotation_filename            = 'annotation_32x2.txt'
 
-# Pytorch Lightning Parameters
-args.accelerator                    = 'gpu'
-args.devices                        = -1
-# args.strategy                       = 'ddp'
+# Hardware Parameters
 # args.num_nodes                      = 1
 args.replace_sampler_ddp            = False
-args.precision                      = 16
+
+# Logging Parameters
 args.log_root                       = 'Logs'
 # args.logger                         = TensorBoardLogger(args.log_root, name=f"{args.arch}_{date}")
 args.log_every_n_steps              = 20
