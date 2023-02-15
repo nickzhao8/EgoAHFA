@@ -71,3 +71,4 @@ def rename_spaces(root):
             tasks = os.listdir(Path(root,subdir,score))
             for task in tasks:
                 if ' ' in task:
+                    os.rename(Path(root,subdir,score,task), Path(root,subdir,score,task.replace(' ','_')))
