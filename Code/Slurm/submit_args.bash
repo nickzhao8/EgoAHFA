@@ -9,7 +9,7 @@ sbatch -A kite_gpu <<EOT
 #SBATCH --gres=gpu:p100:4
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=9
-#SBATCH --job-name=sbatch_EgoAHFA_classification
+#SBATCH --job-name=`echo $@ | cut -d "/" -f 10`
 #SBATCH -o /cluster/home/t63164uhn/Code/EgoAHFA/slurm_logs/%x-%j.out 
 
 # debugging flags (optional)
