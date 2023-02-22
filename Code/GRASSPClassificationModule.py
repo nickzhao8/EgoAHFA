@@ -329,25 +329,35 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
                 pg["lr"] = lr_scale * self.args.lr
 
     def configure_optimizers(self):
-        if self.args.arch == 'mvit_v2_b':
+        if self.args.optim == 'SGD':
             optimizer = torch.optim.SGD(
                 self.parameters(),
                 lr=self.args.lr,
                 weight_decay=self.args.weight_decay,
             )
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, self.args.max_epochs, last_epoch=-1
-            )
-        else:
-            optimizer = torch.optim.SGD(
+        elif self.args.optim == 'AdamW':
+            optimizer = torch.optim.AdamW(
                 self.parameters(),
                 lr=self.args.lr,
-                momentum=self.args.momentum,
                 weight_decay=self.args.weight_decay,
             )
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, self.args.max_epochs, last_epoch=-1
-            )
+        else: # if optim not defined, use architecture defaults. 
+            if self.args.arch == 'mvit_v2_b':
+                optimizer = torch.optim.SGD(
+                    self.parameters(),
+                    lr=self.args.lr,
+                    weight_decay=self.args.weight_decay,
+                )
+            else:
+                optimizer = torch.optim.SGD(
+                    self.parameters(),
+                    lr=self.args.lr,
+                    momentum=self.args.momentum,
+                    weight_decay=self.args.weight_decay,
+                )
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, self.args.max_epochs, last_epoch=-1
+        )
         return [optimizer], [scheduler]
     
 def setup_logger():
