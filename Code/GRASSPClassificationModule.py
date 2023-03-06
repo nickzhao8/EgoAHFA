@@ -191,7 +191,7 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
             else:
                 loss = self.ordinal_loss(y_hat, batch["label"])
         else:                   
-            loss = F.cross_entropy(y_hat, batch["label"])
+            loss = F.cross_entropy(y_hat, batch["label"], label_smoothing=self.args.label_smoothing)
         # Manual logging of training metrics
         if ((batch_idx % self.args.log_every_n_steps) == 0):
             preds = F.softmax(y_hat, dim=-1)
@@ -235,7 +235,7 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
                 loss = self.ordinal_loss(y_hat, batch["label"])
                 pred_labels = self.ordinal_prediction(preds)
         else:                  
-            loss = F.cross_entropy(y_hat, batch["label"])
+            loss = F.cross_entropy(y_hat, batch["label"], label_smoothing=self.args.label_smoothing)
             pred_labels = torch.argmax(preds, dim=1)
         target = batch["label"]
         # Calculate metrics

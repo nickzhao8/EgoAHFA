@@ -31,6 +31,7 @@ parser.add_argument("--finetune", default=False, action=argparse.BooleanOptional
 parser.add_argument("--pretrained_state_dict", default='Models/slowfast/slowfast_5class.pyth', type=str)
 parser.add_argument("--sparse_temporal_sampling", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--results_path", default=None, type=str)
+parser.add_argument("--label_smoothing", default=0.0, type=float)
 
 # Hardware Parameters
 parser.add_argument("--strategy", default=None, type=str)
