@@ -6,7 +6,7 @@ import pytorchvideo.data
 import torch
 
 from torch.utils.data import DistributedSampler, RandomSampler, ChainDataset, ConcatDataset
-from .transform_classes import PackPathway
+from .transform_classes import PackPathway, MaskPatches, ApplyTransformToFast, ApplyTransformToSlow
 from pytorchvideo.transforms import (
     ApplyTransformToKey,
     RandomShortSideScale,
@@ -137,8 +137,15 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
                 +(
                     [
                         PackPathway(self.args),
+
                     ] 
                     if self.args.arch == "slowfast"
+                    else []
+                )
+                +(
+                    [
+                        ApplyTransformToSlow(MaskPatches(args.patch_size, args.mask_ratio)),
+                    ] if self.args.mask
                     else []
                 )
             ),

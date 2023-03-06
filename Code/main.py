@@ -11,7 +11,8 @@ from pytorch_lightning.accelerators import CUDAAccelerator
 import os
 from pathlib import Path
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+from timeit import default_timer
 
 # Static seed for reproducible results
 pytorch_lightning.trainer.seed_everything(seed=1)
@@ -65,6 +66,10 @@ parser.add_argument("--data_root"          , default= r'C:\Users\zhaon\Documents
 parser.add_argument("--num_segments"       , default= 4                                             , type=int)
 parser.add_argument("--frames_per_segment" , default= 8                                             , type=int)
 parser.add_argument("--norm"               , default=True                                           , action=argparse.BooleanOptionalAction)
+parser.add_argument("--mask"               , default=False                                           , action=argparse.BooleanOptionalAction)
+parser.add_argument("--patch_size" ,         default= 14                                             , type=int)
+parser.add_argument("--mask_ratio" ,         default= 0.5                                             , type=float)
+
 
 # Epoch Parameters
 parser.add_argument("--max_epochs"          , default = 20   , type=int)  
@@ -130,6 +135,7 @@ args.profiler                       = profiler
 
 def main():
     setup_logger()
+    start = default_timer()
 
     # Leave-one-subject-out cross validation
     for i in range(args.start_sub, args.end_sub + 1): # +1 because end_sub is inclusive
@@ -190,6 +196,9 @@ sparse: {args.sparse_temporal_sampling}  ===")
         hp_file = Path(results_dir, 'args.txt')
         with open(hp_file, 'w') as f:
             json.dump({'args':vars(args)}, f, default=GRASSP_classes.dumper, indent=4)
+    
+    end = default_timer()
+    print('total runtime:', timedelta(seconds=end-start))
 
 if __name__ == '__main__':
     main()
