@@ -8,6 +8,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping, TQDM
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.accelerators import CUDAAccelerator
+from pytorch_lightning.utilities.deepspeed import convert_zero_checkpoint_to_fp32_state_dict
 import os
 from pathlib import Path
 import json
@@ -180,6 +181,12 @@ sparse: {args.sparse_temporal_sampling}  ===")
         os.makedirs(model_dir, exist_ok=True)
         model_path = Path(model_dir, f"{args.arch}_{args.val_sub}.ckpt")
         trainer.save_checkpoint(model_path)
+        # If using DeepSpeed: convert sharded model and optim states to state_dict
+        if 'deepspeed' in args.strategy:
+            os.rename(model_path, str(model_path)+"*") # temporary rename directory
+            convert_zero_checkpoint_to_fp32_state_dict(str(model_path)+"*", model_path)
+            import shutil
+            shutil.rmtree(str(model_path)+"*") # Remove directory after converting to file
 
         # == RUN VALIDATION LOOP ==
         metrics = trainer.validate(classification_module, datamodule)
