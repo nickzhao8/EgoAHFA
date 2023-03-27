@@ -8,6 +8,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, EarlyStopping, TQDM
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.accelerators import CUDAAccelerator
+from pytorch_lightning.utilities.deepspeed import convert_zero_checkpoint_to_fp32_state_dict
 import os
 from pathlib import Path
 import json
@@ -25,6 +26,7 @@ parser  =  pytorch_lightning.Trainer.add_argparse_args(parser)
 # === System Parameters ===
 parser.add_argument("--on_cluster", default=False, action='store_true')
 parser.add_argument("--arch", default=None, required=True, type=str)
+parser.add_argument("--pyslowfast_cfg_file", default=None, type=str)
 parser.add_argument("--ordinal", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--ordinal_strat", default=None, type=str)
 parser.add_argument("--transfer_learning", default=False, action=argparse.BooleanOptionalAction)
@@ -32,6 +34,7 @@ parser.add_argument("--finetune", default=False, action=argparse.BooleanOptional
 parser.add_argument("--pretrained_state_dict", default='Models/slowfast/slowfast_5class.pyth', type=str)
 parser.add_argument("--sparse_temporal_sampling", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--results_path", default=None, type=str)
+parser.add_argument("--label_smoothing", default=0.0, type=float)
 
 # Hardware Parameters
 parser.add_argument("--strategy", default=None, type=str)
@@ -54,6 +57,7 @@ parser.add_argument("--warmup"      , default=0             , type=float)
 parser.add_argument("--workers"     , default= int(4)       , type=int)
 parser.add_argument("--batch_size"  , default= int(8)       , type=int)
 parser.add_argument("--accumulate_grad_batches", default=int(1), type=int)
+parser.add_argument("--optim",        default=None)
 
 ### DATASET parameters ###
 parser.add_argument("--num_frames"         , default= int(32)                                       , type=int)
@@ -178,6 +182,12 @@ sparse: {args.sparse_temporal_sampling}  ===")
         os.makedirs(model_dir, exist_ok=True)
         model_path = Path(model_dir, f"{args.arch}_{args.val_sub}.ckpt")
         trainer.save_checkpoint(model_path)
+        # If using DeepSpeed: convert sharded model and optim states to state_dict
+        if 'deepspeed' in args.strategy:
+            os.rename(model_path, str(model_path)+"*") # temporary rename directory
+            convert_zero_checkpoint_to_fp32_state_dict(str(model_path)+"*", model_path)
+            import shutil
+            shutil.rmtree(str(model_path)+"*") # Remove directory after converting to file
 
         # == RUN VALIDATION LOOP ==
         metrics = trainer.validate(classification_module, datamodule)

@@ -110,7 +110,7 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
             key="video",
             transform=Compose(
                 [
-                    UniformTemporalSubsample(args.num_frames),
+                    #UniformTemporalSubsample(args.num_frames),
                 ]
                 +(
                     [
@@ -145,7 +145,7 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
                 +(
                     [
                         ApplyTransformToSlow(MaskPatches(args.patch_size, args.mask_ratio)),
-                    ] if self.args.mask
+                    ] if self.args.mask and mode == "train"
                     else []
                 )
             ),
