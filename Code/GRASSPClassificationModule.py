@@ -395,7 +395,7 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
                 weight_decay=self.args.weight_decay,
             )
         elif self.args.optim == 'Adam':
-            optimizer = torch.optim.AdamW(
+            optimizer = torch.optim.Adam(
                 self.parameters(),
                 lr=self.args.lr,
                 weight_decay=self.args.weight_decay,

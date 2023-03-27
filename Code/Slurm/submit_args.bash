@@ -5,7 +5,7 @@ sbatch -A kite_gpu <<EOT
 #SBATCH -p gpu
 #SBATCH --nodes=1
 #SBATCH -t 3-00:00:00
-#SBATCH --mem-per-gpu=32G
+#SBATCH --mem-per-gpu=42G
 #SBATCH --gres=gpu:p100:4
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=9
