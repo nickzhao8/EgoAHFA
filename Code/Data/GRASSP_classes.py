@@ -110,7 +110,7 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
             key="video",
             transform=Compose(
                 [
-                    UniformTemporalSubsample(args.num_frames),
+                    #UniformTemporalSubsample(args.num_frames),
                 ]
                 +(
                     [

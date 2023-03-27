@@ -12,6 +12,9 @@ from Tools.mvit import build_mvit_v2_b
 from coral_pytorch.losses import corn_loss, coral_loss
 from coral_pytorch.layers import CoralLayer
 from coral_pytorch.dataset import corn_label_from_logits, levels_from_labelbatch, proba_to_label
+from slowfast.utils.parser import load_config
+from slowfast.models import build_model
+from argparse import Namespace
 
 """
 GRASSPClassificationModule
@@ -127,6 +130,43 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
                 self.model.head[1] = CoralLayer(size_in=num_features, num_classes=self.args.num_classes)
 
             self.batch_key = "video"
+        elif self.args.arch == 'mvit_maskfeat':
+            pyslowfast_args = Namespace(opts=None)
+            pyslowfast_cfg = load_config(pyslowfast_args, args.pyslowfast_cfg_file)
+            self.model = build_model(pyslowfast_cfg)
+            if self.args.transfer_learning:
+                # Load state_dict
+                state_dict = torch.load(self.args.pretrained_state_dict)['model_state']
+                self.model.load_state_dict(state_dict, strict=False)
+                # Disable final activation layer (done outside in loss calculation)
+                self.model.head.act = torch.nn.Identity()
+
+                # Save pointers to layers to unfreeze
+                last_block_mlp  = self.model.blocks[-1].mlp
+                model_norm      = self.model.norm
+                model_head      = self.model.head
+                if not self.args.finetune:
+                    # Freeze layers
+                    for param in self.model.parameters():
+                        param.requires_grad = False
+                    # Unfreeze saved last layers
+                    for param in last_block_mlp.parameters(): param.requires_grad = True
+                    for param in model_norm.parameters(): param.requires_grad = True
+                    for param in model_head.parameters(): param.requires_grad = True
+            else:
+                raise Exception("MaskFeat must use transfer learning.") 
+            # Construct last FC layer
+            num_features = self.model.head.projection.in_features
+            self.model.head.projection = torch.nn.Linear(num_features, self.args.num_classes)
+
+            ## If using CORN Ordinal regression, replace final layer with -1 output nodes.
+            if self.args.ordinal and self.args.ordinal_strat == 'CORN':
+                num_features = self.model.head.projection.in_features
+                self.model.head.projection = torch.nn.Linear(num_features, self.args.num_classes-1)
+            if self.args.ordinal and self.args.ordinal_strat == 'CORAL':
+                num_features = self.model.head.projection.in_features
+                self.model.head.projection = CoralLayer(size_in=num_features, num_classes=self.args.num_classes)
+            self.batch_key = "video"
         else:
             raise Exception(f"{self.args.arch} not supported")
 
@@ -156,6 +196,9 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
     #     return super().on_train_end()
 
     def forward(self, x):
+        # MaskFeat forward operates on x[0], rather than x. 
+        if self.args.arch == 'mvit_maskfeat':
+            x = torch.unsqueeze(x,dim=0)
         return self.model(x)
     
     """
@@ -179,6 +222,8 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
         
     def training_step(self, batch, batch_idx):
         x = batch[self.batch_key]
+        if self.args.arch == 'mvit_maskfeat': # Maskfeat operates on x[0]
+            x = torch.unsqueeze(x, dim=0)
         y_hat = self.model(x)
         # == LOSS == 
         if self.args.ordinal:   
@@ -219,6 +264,8 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
     
     def validation_step(self, batch, batch_idx):
         x = batch[self.batch_key]
+        if self.args.arch == 'mvit_maskfeat': # Maskfeat operates on x[0]
+            x = torch.unsqueeze(x, dim=0)
         y_hat = self.model(x)
         preds = F.softmax(y_hat, dim=-1)
         # Calculate loss and predicted labels
@@ -322,11 +369,17 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
         # update params
         optimizer.step(closure=optimizer_closure)
 
-        # Linear warm-up: skip args.warmup number of steps
-        if self.trainer.global_step < self.args.warmup:
-            lr_scale = min(1.0, float(self.trainer.global_step + 1) / float(self.args.warmup))
-            for pg in optimizer.param_groups:
-                pg["lr"] = lr_scale * self.args.lr
+        # Linear warm-up
+        try:
+            if self.trainer.current_epoch < self.args.warmup_epochs:
+                lr_scale = min(1.0, float(self.trainer.current_epoch + 1) / float(self.args.warmup_epochs))
+                for pg in optimizer.param_groups:
+                    pg["lr"] = lr_scale * self.args.lr
+        except AttributeError:
+            if self.trainer.global_step < self.args.warmup:
+                lr_scale = min(1.0, float(self.trainer.global_step + 1) / float(self.args.warmup))
+                for pg in optimizer.param_groups:
+                    pg["lr"] = lr_scale * self.args.lr
 
     def configure_optimizers(self):
         if self.args.optim == 'SGD':
@@ -341,8 +394,14 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
                 lr=self.args.lr,
                 weight_decay=self.args.weight_decay,
             )
+        elif self.args.optim == 'Adam':
+            optimizer = torch.optim.AdamW(
+                self.parameters(),
+                lr=self.args.lr,
+                weight_decay=self.args.weight_decay,
+            )
         else: # if optim not defined, use architecture defaults. 
-            if self.args.arch == 'mvit_v2_b':
+            if 'mvit' in self.args.arch:
                 optimizer = torch.optim.SGD(
                     self.parameters(),
                     lr=self.args.lr,
@@ -355,8 +414,9 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
                     momentum=self.args.momentum,
                     weight_decay=self.args.weight_decay,
                 )
+        min_lr = self.args.lr*1e-2
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, self.args.max_epochs, last_epoch=-1
+            optimizer, T_max=self.args.max_epochs, eta_min=min_lr, last_epoch=-1
         )
         return [optimizer], [scheduler]
     
@@ -367,4 +427,3 @@ def setup_logger():
     logger = logging.getLogger("pytorchvideo")
     logger.setLevel(logging.DEBUG)
     logger.addHandler(ch)
-

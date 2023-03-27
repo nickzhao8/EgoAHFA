@@ -26,6 +26,7 @@ parser  =  pytorch_lightning.Trainer.add_argparse_args(parser)
 # === System Parameters ===
 parser.add_argument("--on_cluster", default=False, action='store_true')
 parser.add_argument("--arch", default=None, required=True, type=str)
+parser.add_argument("--pyslowfast_cfg_file", default=None, type=str)
 parser.add_argument("--ordinal", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--ordinal_strat", default=None, type=str)
 parser.add_argument("--transfer_learning", default=False, action=argparse.BooleanOptionalAction)
