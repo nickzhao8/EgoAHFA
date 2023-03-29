@@ -60,13 +60,13 @@ class MaskPatches(torch.nn.Module):
         super().__init__()
     
     def forward(self, frames: torch.Tensor):
-        # Assume frames is a tensor of [C,T,H,W], and H=W (square). 
-        assert frames.shape[2] == frames.shape[3], "Invalid shape. Expected a tensor of shape [C,T,H,W], where H=W."
-        sidelen = frames.shape[2]//self.patch_size
+        # Assume frames is a tensor of [...,T,H,W], and H=W (square). 
+        assert frames.shape[-1] == frames.shape[-2], f"Invalid shape. Expected a tensor of shape [...,T,H,W], where H=W. Instead got tensor of shape {frames.shape}"
+        sidelen = frames.shape[-1]//self.patch_size
         num_patches = sidelen*sidelen
         num_masked_patches = int(num_patches * self.mask_ratio)
         if self.mode == 'frame':
-            for i in range(frames.shape[1]):
+            for i in range(frames.shape[-3]):
                 random_indices = torch.randperm(num_patches)[:num_masked_patches]
                 for idx in random_indices:
                     h_idx = idx % sidelen
@@ -76,7 +76,7 @@ class MaskPatches(torch.nn.Module):
                         w_idx*self.patch_size:w_idx*self.patch_size+self.patch_size] = 0.0
         elif self.mode == 'video':
             random_indices = torch.randperm(num_patches)[:num_masked_patches]
-            for i in range(frames.shape[1]):
+            for i in range(frames.shape[-3]):
                 for idx in random_indices:
                     h_idx = idx % sidelen
                     w_idx = idx // sidelen
