@@ -35,6 +35,7 @@ parser.add_argument("--pretrained_state_dict", default='Models/slowfast/slowfast
 parser.add_argument("--sparse_temporal_sampling", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--results_path", default=None, type=str)
 parser.add_argument("--label_smoothing", default=0.0, type=float)
+parser.add_argument("--LOTOCV", default=False, action=argparse.BooleanOptionalAction)
 
 # Hardware Parameters
 parser.add_argument("--strategy", default=None, type=str)
@@ -51,7 +52,8 @@ parser.add_argument("--only_sub", default=None, action='append', type=int)
 parser.add_argument("--lr"          , default=float(1.6e-3) , type=float) 
 parser.add_argument("--momentum"    , default=float(0.9)    , type=float) 
 parser.add_argument("--weight_decay", default=float(5e-2)   , type=float) 
-parser.add_argument("--warmup"      , default=0             , type=float) 
+parser.add_argument("--warmup"      , default=0             , type=int) 
+parser.add_argument("--warmup_epochs"      , default=0             , type=int) 
 
 # Trainer Parameters
 parser.add_argument("--workers"     , default= int(4)       , type=int)
@@ -68,7 +70,7 @@ parser.add_argument("--data_root"          , default= r'C:\Users\zhaon\Documents
 parser.add_argument("--num_segments"       , default= 4                                             , type=int)
 parser.add_argument("--frames_per_segment" , default= 8                                             , type=int)
 parser.add_argument("--norm"               , default=True                                           , action=argparse.BooleanOptionalAction)
-parser.add_argument("--maskmode"           , default=None                                           , action=none_int_or_str)
+parser.add_argument("--maskmode"           , default=None                                           , type=none_int_or_str)
 parser.add_argument("--patch_size" ,         default= 14                                             , type=int)
 parser.add_argument("--mask_ratio" ,         default= 0.5                                             , type=float)
 
@@ -138,10 +140,11 @@ args.profiler                       = profiler
 def main():
     setup_logger()
     start = default_timer()
+    data_content = os.listdir(args.data_root)
 
-    # Leave-one-subject-out cross validation
-    for i in range(args.start_sub, args.end_sub + 1): # +1 because end_sub is inclusive
-        subdir = f'Sub{i}'
+    # Leave-one-subject/task-out cross validation
+    for i in range(len(data_content)) if args.LOTOCV else range(args.start_sub, args.end_sub + 1): # +1 because end_sub is inclusive
+        subdir = f'{data_content[i]}' if args.LOTOCV else f'Sub{i}'
         args.val_sub = subdir
 
         # Set up experiment name and result output location
@@ -156,7 +159,7 @@ def main():
                                                                 version=f"{args.val_sub}_{date}")
         # Only use these subs; skip everything else (subset training)
         if args.only_sub is not None: 
-            subset = [f"Sub{x}" for x in args.only_sub]
+            subset = [f"{data_content[x]}" for x in args.only_sub] if args.LOTOCV else [f"Sub{x}" for x in args.only_sub]
             if subdir not in subset: continue
 
         datamodule = GRASSP_classes.GRASSPFrameDataModule(args)
