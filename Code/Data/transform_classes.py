@@ -61,7 +61,7 @@ class MaskPatches(torch.nn.Module):
     
     def forward(self, frames: torch.Tensor):
         # Assume frames is a tensor of [...,T,H,W], and H=W (square). 
-        assert frames.shape[-1] == frames.shape[-2], "Invalid shape. Expected a tensor of shape [C,T,H,W], where H=W."
+        assert frames.shape[-1] == frames.shape[-2], f"Invalid shape. Expected a tensor of shape [...,T,H,W], where H=W. Instead got tensor of shape {frames.shape}"
         sidelen = frames.shape[-1]//self.patch_size
         num_patches = sidelen*sidelen
         num_masked_patches = int(num_patches * self.mask_ratio)

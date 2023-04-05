@@ -180,8 +180,10 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
         self.train_accs = []
         self.train_maes = []
         # Display val_sub on progress bar
-        val_subnum = int(self.args.val_sub.lower().split('sub')[-1])
-        self.log("val_sub", val_subnum, prog_bar=True)
+        try:
+            val_subnum = int(self.args.val_sub.lower().split('sub')[-1])
+            self.log("val_sub", val_subnum, prog_bar=True)
+        except ValueError: None
     
     def on_train_epoch_end(self) -> None:
         # Log Histogram of model weights
