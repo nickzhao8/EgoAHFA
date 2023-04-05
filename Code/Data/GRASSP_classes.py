@@ -136,9 +136,9 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
                 )
                 +(
                     [
-                        MaskPatches(args.patch_size, args.mask_ratio),
+                        MaskPatches(args.patch_size, args.mask_ratio, args.maskmode),
                     ]
-                    if self.args.maskmode == "full" and mode == "train"
+                    if self.args.maskpathway == "full" and mode == "train"
                     else []
                 )
                 +(
@@ -151,8 +151,8 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
                 )
                 +(
                     [
-                        ApplyTransformToSlow(MaskPatches(args.patch_size, args.mask_ratio)),
-                    ] if self.args.maskmode == "slow" and self.args.arch == "slowfast" and mode == "train"
+                        ApplyTransformToSlow(MaskPatches(args.patch_size, args.mask_ratio, args.maskmode)),
+                    ] if self.args.maskpathway == "slow" and self.args.arch == "slowfast" and mode == "train"
                     else []
                 )
             ),
