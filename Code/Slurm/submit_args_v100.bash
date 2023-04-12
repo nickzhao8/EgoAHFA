@@ -22,3 +22,4 @@ cd /cluster/home/t63164uhn/Code/EgoAHFA/
 #export NCCL_NSOCKS_PERTHREAD=4
 #export NCCL_SOCKET_NTHREADS=2
 srun python /cluster/home/t63164uhn/Code/EgoAHFA/Code/main.py $@
+EOT
