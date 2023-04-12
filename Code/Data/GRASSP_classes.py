@@ -22,7 +22,10 @@ from torchvision.transforms import (
     Compose,
     RandomCrop,
     RandomHorizontalFlip,
+    RandAugment,
+    ConvertImageDtype,
 )
+from torchvision.ops import Permute
 from torchvideo.transforms import NormalizeVideo
 from typing import Any, Callable, Iterable, Optional, Type, Dict, Tuple, Union, List
 from pathlib import Path
@@ -112,6 +115,15 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
                 [
                     #UniformTemporalSubsample(args.num_frames),
                 ]
+                +(
+                    [
+                        RandAugment(),
+                        ConvertImageDtype(torch.float32),
+                        Permute([1,0,2,3]),
+                    ]
+                    if self.args.randaug
+                    else []
+                )
                 +(
                     [
                         NormalizeVideo(args.video_means, args.video_stds),
@@ -272,6 +284,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                     frames_per_segment  = self.args.frames_per_segment,
                     imagefile_template  = '{:04d}.jpg',
                     transform           = train_transform,
+                    randaug             = self.args.randaug,
                 )
             else:
                 dataset = GRASSPFrameDataset(
@@ -281,6 +294,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                     frames_per_segment  = self.args.num_frames,
                     imagefile_template  = '{:04d}.jpg',
                     transform           = train_transform,
+                    randaug             = self.args.randaug,
                 )
             datasets.append(dataset) 
 
@@ -322,6 +336,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                         frames_per_segment  = self.args.frames_per_segment,
                         imagefile_template  = '{:04d}.jpg',
                         transform           = val_transform,
+                        randaug             = False,
                     )
                 else:
                     val_dataset = GRASSPFrameDataset(
@@ -331,6 +346,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                         frames_per_segment  = self.args.num_frames,
                         imagefile_template  = '{:04d}.jpg',
                         transform           = val_transform,
+                        randaug             = False,
                     )
         assert made_val == True, "Invalid val_sub; val_sub not found."
 
@@ -359,7 +375,9 @@ class GRASSPFrameDataset (VideoFrameDataset):
                 frames_per_segment: int = 16,
                 imagefile_template: str = '{:04d}.jpg',
                 transform=None,
+                randaug=False,
                 test_mode: bool = False):
+        self.randaug=randaug
         super().__init__(root_path, annotationfile_path, num_segments, frames_per_segment, imagefile_template, transform, test_mode)
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
@@ -394,10 +412,13 @@ class GRASSPFrameDataset (VideoFrameDataset):
 
                 if frame_index < record.end_frame:
                     frame_index += 1
-
+        
+        # If using RandAugment, convert PIL image to uint8 tensor, else float32 tensor.
+        image_type = "uint8" if self.randaug else "float32"
         # By default, transform PIL Images to Tensor
-        images = ImglistToTensor.forward(images)
-        images = images.permute(1,0,2,3)
+        images = ImglistToTensor.forward(images, image_type)
+        if not self.randaug:
+            images = images.permute(1,0,2,3)
 
         clip_dict = {
             'video':images,

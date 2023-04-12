@@ -74,7 +74,7 @@ parser.add_argument("--maskmode"           , default="frame"                    
 parser.add_argument("--maskpathway",        default=None                                          , type=none_int_or_str)
 parser.add_argument("--patch_size" ,         default= 14                                             , type=int)
 parser.add_argument("--mask_ratio" ,         default= 0.5                                             , type=float)
-
+parser.add_argument("--randaug",             default=False                                          , action=argparse.BooleanOptionalAction)
 
 # Epoch Parameters
 parser.add_argument("--max_epochs"          , default = 20   , type=int)  
