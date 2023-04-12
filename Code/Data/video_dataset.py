@@ -252,7 +252,7 @@ class ImglistToTensor(torch.nn.Module):
     Can be used as first transform for ``VideoFrameDataset``.
     """
     @staticmethod
-    def forward(img_list: List[Image.Image]) -> 'torch.Tensor[NUM_IMAGES, CHANNELS, HEIGHT, WIDTH]':
+    def forward(img_list: List[Image.Image], image_type: str) -> 'torch.Tensor[NUM_IMAGES, CHANNELS, HEIGHT, WIDTH]':
         """
         Converts each PIL image in a list to
         a torch Tensor and stacks them into
@@ -260,7 +260,11 @@ class ImglistToTensor(torch.nn.Module):
 
         Args:
             img_list: list of PIL images.
+            image_type: string indicating the output dtype of the tensor
         Returns:
             tensor of size ``NUM_IMAGES x CHANNELS x HEIGHT x WIDTH``
         """
-        return torch.stack([transforms.functional.to_tensor(pic) for pic in img_list])
+        if image_type == "float32":
+            return torch.stack([transforms.functional.to_tensor(pic) for pic in img_list])
+        else:
+            return torch.stack([transforms.functional.pil_to_tensor(pic) for pic in img_list])

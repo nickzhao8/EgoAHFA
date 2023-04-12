@@ -14,8 +14,8 @@ from torchmetrics.functional import mean_absolute_error, mean_squared_error
 from filename_aggr_pred import filename_aggr_pred
 
 # exp_name = 'mvit_08_23_14'
-exp_name = 'SLOWFAST_TRANSFER_ORDINAL_SPARSE'
-distr = False
+exp_name = 'SUBSETmaskfeat_CORAL_sparse'
+distr = True
 # exp_name = 'slowfast_scratch_09_29_17'
 if distr:   results_path = Path(r'M:\Wearable Hand Monitoring\CODE AND DOCUMENTATION\Nick Z\Cluster_output\Results', exp_name, 'Raw')
 else:       results_path = Path('Results', exp_name, 'Raw')
@@ -55,13 +55,13 @@ total_sub_acc = []
 
 for filename in results_files:
     pred_metrics[filename] = {}
-    sub = filename.split('_')[0]
-    epoch = filename.split('_')[1]
+    sub = "_".join(filename.split('_')[:-2])
+    epoch = filename.split('_')[-2]
     if sub not in top_metrics: 
         top_metrics[sub] = {}
         top_raws[sub] = {}
         top_aggr_metrics[sub] = {}
-    classes = os.listdir(Path('D:\\zhaon\\Datasets\\Video Segments', sub))
+    #classes = os.listdir(Path('D:\\zhaon\\Datasets\\Video Segments', sub))
     with open(Path(results_path, filename), 'r') as file:
         if distr:
             datalist = file.read().split('}{')
@@ -112,7 +112,10 @@ for filename in results_files:
         pred_metrics[filename]['RMSE'] = mean_squared_error(preds, target, squared=False)
 
         if 'accuracy' not in top_metrics[sub] or top_metrics[sub]['MAE'] > pred_metrics[filename]['MAE'] :
-            top_metrics[sub]['sub'] = int(sub.split('Sub')[1])
+            try:
+                top_metrics[sub]['sub'] = int(sub.split('Sub')[1])
+            except IndexError: 
+                top_metrics[sub]['sub'] = sub
             top_metrics[sub]['accuracy'] = pred_metrics[filename]['accuracy'].item()
             top_metrics[sub]['MAE'] = pred_metrics[filename]['MAE'].item()
             top_metrics[sub]['macro_f1'] = pred_metrics[filename]['macro_f1'].item()
@@ -138,14 +141,17 @@ for filename in results_files:
         aggr_target = torch.Tensor(aggr_target).int()
         aggr_accuracy = accuracy(aggr_preds, aggr_target)
         aggr_MAE = mean_absolute_error(aggr_preds, aggr_target)
-        aggr_macrof1 = f1_score(aggr_preds, aggr_target, average='macro', num_classes=6)
-        aggr_macro_recall = recall(aggr_preds, aggr_target, average='macro', num_classes=6)
-        aggr_macro_precision = precision(aggr_preds, aggr_target, average='macro', num_classes=6)
-        aggr_weightedf1 = f1_score(aggr_preds, aggr_target, average='weighted', num_classes=6)
-        aggr_weighted_recall = recall(aggr_preds, aggr_target, average='weighted', num_classes=6)
-        aggr_weighted_precision = precision(aggr_preds, aggr_target, average='weighted', num_classes=6)
+        aggr_macrof1 = f1_score(aggr_preds, aggr_target, average='macro', num_classes=5)
+        aggr_macro_recall = recall(aggr_preds, aggr_target, average='macro', num_classes=5)
+        aggr_macro_precision = precision(aggr_preds, aggr_target, average='macro', num_classes=5)
+        aggr_weightedf1 = f1_score(aggr_preds, aggr_target, average='weighted', num_classes=5)
+        aggr_weighted_recall = recall(aggr_preds, aggr_target, average='weighted', num_classes=5)
+        aggr_weighted_precision = precision(aggr_preds, aggr_target, average='weighted', num_classes=5)
         if 'accuracy' not in top_aggr_metrics[sub] or top_aggr_metrics[sub]['MAE'] > aggr_MAE :
-            top_aggr_metrics[sub]['sub'] = int(sub.split('Sub')[1])
+            try:
+                top_aggr_metrics[sub]['sub'] = int(sub.split('Sub')[1])
+            except IndexError: 
+                top_aggr_metrics[sub]['sub'] = sub
             top_aggr_metrics[sub]['accuracy'] = aggr_accuracy.item()
             top_aggr_metrics[sub]['MAE'] = aggr_MAE.item()
             top_aggr_metrics[sub]['macro_f1'] = aggr_macrof1.item()
@@ -182,12 +188,12 @@ for task in task_data:
     task_data[task]['target'] = torch.Tensor(task_data[task]['target']).int()
     task_metrics[task]['accuracy'] = accuracy(task_data[task]['pred_mode'], task_data[task]['target']).item()
     task_metrics[task]['MAE'] = mean_absolute_error(task_data[task]['pred_mode'], task_data[task]['target']).item()
-    task_metrics[task]['macro_f1'] = f1_score(task_data[task]['pred_mode'], task_data[task]['target'], average='macro', num_classes=6).item()
-    task_metrics[task]['macro_recall'] = recall(task_data[task]['pred_mode'], task_data[task]['target'], average='macro', num_classes=6).item()
-    task_metrics[task]['macro_precision'] = precision(task_data[task]['pred_mode'], task_data[task]['target'], average='macro', num_classes=6).item()
-    task_metrics[task]['weighted_f1'] = f1_score(task_data[task]['pred_mode'], task_data[task]['target'], average='weighted', num_classes=6).item()
-    task_metrics[task]['weighted_recall'] = recall(task_data[task]['pred_mode'], task_data[task]['target'], average='weighted', num_classes=6).item()
-    task_metrics[task]['weighted_precision'] = precision(task_data[task]['pred_mode'], task_data[task]['target'], average='weighted', num_classes=6).item()
+    task_metrics[task]['macro_f1'] = f1_score(task_data[task]['pred_mode'], task_data[task]['target'], average='macro', num_classes=5).item()
+    task_metrics[task]['macro_recall'] = recall(task_data[task]['pred_mode'], task_data[task]['target'], average='macro', num_classes=5).item()
+    task_metrics[task]['macro_precision'] = precision(task_data[task]['pred_mode'], task_data[task]['target'], average='macro', num_classes=5).item()
+    task_metrics[task]['weighted_f1'] = f1_score(task_data[task]['pred_mode'], task_data[task]['target'], average='weighted', num_classes=5).item()
+    task_metrics[task]['weighted_recall'] = recall(task_data[task]['pred_mode'], task_data[task]['target'], average='weighted', num_classes=5).item()
+    task_metrics[task]['weighted_precision'] = precision(task_data[task]['pred_mode'], task_data[task]['target'], average='weighted', num_classes=5).item()
     
 # pprint(top_metrics)
 print('total acc: ', torch.mean(torch.tensor(total_acc)))
@@ -249,14 +255,20 @@ error_table = pd.concat([error_table, error_total_row])
 error_savefile = Path(savepath, f'{exp_name}_TopAggrErrors.csv')
 error_table.to_csv(error_savefile)
 
+## Save top raws to json
+top_raws_savefile = Path(savepath, f'{exp_name}_TopRaws.json')
+with open(top_raws_savefile, 'w') as f:
+    json.dump(top_raws, f, indent=4,)
+
     # import pdb; pdb.set_trace()
     # print(pred_results[filename])
 
 ### PLOT CONFUSION MATRIX ###
-# for sub in top_raws:
-#     total_preds.extend(top_raws[sub]['preds'])
-#     total_target.extend(top_raws[sub]['target'])
-# ConfusionMatrixDisplay.from_predictions(total_target, total_preds, normalize='all')
+for sub in top_raws:
+    total_preds.extend(top_raws[sub]['preds'])
+    total_target.extend(top_raws[sub]['target'])
+ConfusionMatrixDisplay.from_predictions(total_target, total_preds, normalize='all')
+plt.show()
 
 ## PLOT DATA TABLE ### 
 # rounded_table = aggr_metric_table.round(decimals=3)
@@ -268,5 +280,4 @@ error_table.to_csv(error_savefile)
 # table.set_fontsize(10)
 # table.scale(1,1.2)
 
-# plt.show()
 
