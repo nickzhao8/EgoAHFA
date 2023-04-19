@@ -337,6 +337,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                         imagefile_template  = '{:04d}.jpg',
                         transform           = val_transform,
                         randaug             = False,
+                        test_mode           = True,
                     )
                 else:
                     val_dataset = GRASSPFrameDataset(
@@ -347,6 +348,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                         imagefile_template  = '{:04d}.jpg',
                         transform           = val_transform,
                         randaug             = False,
+                        test_mode           = True,
                     )
         assert made_val == True, "Invalid val_sub; val_sub not found."
 

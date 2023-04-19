@@ -60,6 +60,7 @@ parser.add_argument("--workers"     , default= int(4)       , type=int)
 parser.add_argument("--batch_size"  , default= int(8)       , type=int)
 parser.add_argument("--accumulate_grad_batches", default=int(1), type=int)
 parser.add_argument("--optim",        default=None)
+parser.add_argument("--early_stopping", default=True,           action=argparse.BooleanOptionalAction)
 
 ### DATASET parameters ###
 parser.add_argument("--num_frames"         , default= int(32)                                       , type=int)
@@ -170,7 +171,9 @@ def main():
         # Including callbacks in args causes a multiprocessing error; append them here.
         trainer.callbacks.extend([LearningRateMonitor(), 
                                   GRASSP_classes.GRASSPValidationCallback(),
-                                  EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=args.patience)])
+                                ])
+        if args.early_stopping:
+            trainer.callbacks.append(EarlyStopping(monitor='val_MAE', mode='min', min_delta=0.01, patience=args.patience))
 
         print(f"=== TRAINING. Start: {args.start_sub} End: {args.end_sub} Exp.Name: {exp_name} \
 sparse: {args.sparse_temporal_sampling}  ===")
