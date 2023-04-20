@@ -6,10 +6,10 @@ sbatch -A kite_gpu <<EOT
 #SBATCH --nodes=1
 #SBATCH -t 3-00:00:00
 #SBATCH --mem-per-gpu=42G
-#SBATCH --gres=gpu:p100:4
-#SBATCH --ntasks-per-node=4
+#SBATCH --gres=gpu:v100:1
+#SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=9
-#SBATCH --job-name=`echo $@ | cut -d "/" -f 10`
+#SBATCH --job-name=`echo $1 | cut -d "/" -f 10`
 #SBATCH -o /cluster/home/t63164uhn/Code/EgoAHFA/slurm_logs/%x-%j.out 
 
 # debugging flags (optional)

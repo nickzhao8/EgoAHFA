@@ -38,7 +38,7 @@ parser.add_argument("--label_smoothing", default=0.0, type=float)
 parser.add_argument("--LOTOCV", default=False, action=argparse.BooleanOptionalAction)
 
 # Hardware Parameters
-parser.add_argument("--strategy", default=None, type=str)
+parser.add_argument("--strategy", default=None, type=none_int_or_str)
 parser.add_argument("--precision", default=16, type=int)
 parser.add_argument("--accelerator", default='gpu', type=str)
 parser.add_argument("--devices", default=-1, type=int)
@@ -111,7 +111,7 @@ if args.sparse_temporal_sampling:
     args.annotation_filename            = f'annotation_sparse_{args.num_segments}x{args.frames_per_segment}.txt'
     args.annotation_source              = 'annotation_32x2.txt'
 else:
-    args.annotation_filename            = 'annotation_32x2.txt'
+    args.annotation_filename            = f'annotation_{args.num_frames}x{args.stride}.txt'
 
 # Hardware Parameters
 # args.num_nodes                      = 1
@@ -190,7 +190,7 @@ sparse: {args.sparse_temporal_sampling}  ===")
         model_path = Path(model_dir, f"{args.arch}_{args.val_sub}.ckpt")
         trainer.save_checkpoint(model_path)
         # If using DeepSpeed: convert sharded model and optim states to state_dict
-        if 'deepspeed' in args.strategy:
+        if args.strategy is not None and 'deepspeed' in args.strategy:
             os.rename(model_path, str(model_path)+"*") # temporary rename directory
             convert_zero_checkpoint_to_fp32_state_dict(str(model_path)+"*", model_path)
             import shutil
