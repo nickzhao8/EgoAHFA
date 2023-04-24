@@ -70,12 +70,17 @@ parser.add_argument("--shuffle"            , default= True                      
 parser.add_argument("--data_root"          , default= r'C:\Users\zhaon\Documents\GRASSP_JPG_FRAMES' , type=str)
 parser.add_argument("--num_segments"       , default= 4                                             , type=int)
 parser.add_argument("--frames_per_segment" , default= 8                                             , type=int)
+
+## Data Augmentation Parameters ###
+parser.add_argument("--no_transform"        , default=False                                         , action=argparse.BooleanOptionalAction)
 parser.add_argument("--norm"               , default=True                                           , action=argparse.BooleanOptionalAction)
 parser.add_argument("--maskmode"           , default="frame"                                           , type=str)
 parser.add_argument("--maskpathway",        default=None                                          , type=none_int_or_str)
 parser.add_argument("--patch_size" ,         default= 14                                             , type=int)
 parser.add_argument("--mask_ratio" ,         default= 0.5                                             , type=float)
 parser.add_argument("--randaug",             default=False                                          , action=argparse.BooleanOptionalAction)
+parser.add_argument("--randaugN",            default=2,                                             type=int)
+parser.add_argument("--randaugM",            default=9,                                             type=int)
 
 # Epoch Parameters
 parser.add_argument("--max_epochs"          , default = 20   , type=int)  

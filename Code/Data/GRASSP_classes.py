@@ -109,6 +109,7 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
         Define video transforms for data augmentation. 
         """
         args = self.args
+        if args.no_transform: mode = "val"
         return ApplyTransformToKey(
             key="video",
             transform=Compose(
@@ -117,11 +118,11 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
                 ]
                 +(
                     [
-                        RandAugment(),
+                        RandAugment(args.randaugN, args.randaugM),
                         ConvertImageDtype(torch.float32),
                         Permute([1,0,2,3]),
                     ]
-                    if self.args.randaug
+                    if self.args.randaug and mode=="train"
                     else []
                 )
                 +(
