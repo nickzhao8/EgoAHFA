@@ -21,7 +21,7 @@ class PackPathway(torch.nn.Module):
             -3,
             torch.linspace(
                 0, frames.shape[-3] - 1, frames.shape[-3] // self.args.slowfast_alpha
-            ).long(),
+            ).to(frames).long(),
         )
         #print(frames.shape[1], self.args.slowfast_alpha)
         frame_list = [slow_pathway, fast_pathway]
