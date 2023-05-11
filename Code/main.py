@@ -66,6 +66,7 @@ parser.add_argument("--early_stopping", default=True,           action=argparse.
 parser.add_argument("--num_frames"         , default= int(32)                                       , type=int)
 parser.add_argument("--stride"             , default= int(2)                                        , type=int)
 parser.add_argument("--num_classes"        , default= int(6)                                        , type=int)
+parser.add_argument("--consolidate"        , default= False                                         , action=argparse.BooleanOptionalAction)
 parser.add_argument("--shuffle"            , default= True                                          , action=argparse.BooleanOptionalAction)
 parser.add_argument("--data_root"          , default= r'C:\Users\zhaon\Documents\GRASSP_JPG_FRAMES' , type=str)
 parser.add_argument("--num_segments"       , default= 4                                             , type=int)

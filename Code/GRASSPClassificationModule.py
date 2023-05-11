@@ -62,6 +62,9 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
             if self.args.transfer_learning:
                 # Load pre-trained state dict
                 state_dict = torch.load(self.args.pretrained_state_dict)
+                # Remove final layer from state_dict for compatibility with different sized final layers
+                state_dict.pop("blocks.6.proj.weight")
+                state_dict.pop("blocks.6.proj.bias")
                 self.model.load_state_dict(state_dict, strict=False)
                 # Save pointers to layers to unfreeze
                 block4_pathway0_res_block2 = self.model.blocks[4].multipathway_blocks[0].res_blocks[2]
@@ -218,6 +221,8 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
         x = batch[self.batch_key]
         if self.args.arch == 'mvit_maskfeat': # Maskfeat operates on x[0]
             x = torch.unsqueeze(x, dim=0)
+        if self.args.consolidate:
+            self.consolidate_labels(batch["label"])
         y_hat = self.model(x)
         # == LOSS == 
         if self.args.ordinal:   
@@ -260,6 +265,8 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
         x = batch[self.batch_key]
         if self.args.arch == 'mvit_maskfeat': # Maskfeat operates on x[0]
             x = torch.unsqueeze(x, dim=0)
+        if self.args.consolidate:
+            self.consolidate_labels(batch["label"])
         y_hat = self.model(x)
         preds = F.softmax(y_hat, dim=-1)
         # Calculate loss and predicted labels
@@ -328,6 +335,19 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
                 filenames[video_name]['target'] = [target[i]]
                 filenames[video_name]['clip_index'] = [clip_index[i].item()]
         return filenames
+    
+    def consolidate_labels(self, labels: torch.Tensor) -> torch.Tensor:
+        """
+        Consolidate 5-class labels to 3 classes. Changes labels in place. 
+        Consolidated label mapping (note that GRASSP scores are label+1):
+        [0, 1]  ->  [0]
+        [2]     ->  [1]
+        [3, 4]  ->  [2]
+        """
+        consolidated_mapping = [0,0,1,2,2] 
+        for i, label in enumerate(labels):
+            labels[i] = consolidated_mapping[label]
+        
     
     # learning rate warm-up
     def optimizer_step(
