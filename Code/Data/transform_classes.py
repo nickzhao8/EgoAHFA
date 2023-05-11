@@ -7,6 +7,7 @@ import torch
 class PackPathway(torch.nn.Module):
     """
     Transform for splitting data into slow and fast streams for SlowFast. 
+    Assume data is of dimensions [..., T, H, W]
     """
     def __init__(self, args):
         self.args = args
@@ -17,9 +18,9 @@ class PackPathway(torch.nn.Module):
         # Perform temporal sampling from the fast pathway.
         slow_pathway = torch.index_select(
             frames,
-            1,
+            -3,
             torch.linspace(
-                0, frames.shape[1] - 1, frames.shape[1] // self.args.slowfast_alpha
+                0, frames.shape[-3] - 1, frames.shape[-3] // self.args.slowfast_alpha
             ).long(),
         )
         #print(frames.shape[1], self.args.slowfast_alpha)
@@ -72,7 +73,7 @@ class MaskPatches(torch.nn.Module):
                     h_idx = idx % sidelen
                     w_idx = idx // sidelen
                     # Set masked patch to 0
-                    frames[:,i,h_idx*self.patch_size:h_idx*self.patch_size+self.patch_size,
+                    frames[...,i,h_idx*self.patch_size:h_idx*self.patch_size+self.patch_size,
                         w_idx*self.patch_size:w_idx*self.patch_size+self.patch_size] = 0.0
         elif self.mode == 'video':
             random_indices = torch.randperm(num_patches)[:num_masked_patches]
@@ -81,6 +82,6 @@ class MaskPatches(torch.nn.Module):
                     h_idx = idx % sidelen
                     w_idx = idx // sidelen
                     # Set masked patch to 0
-                    frames[:,i,h_idx*self.patch_size:h_idx*self.patch_size+self.patch_size,
+                    frames[...,i,h_idx*self.patch_size:h_idx*self.patch_size+self.patch_size,
                         w_idx*self.patch_size:w_idx*self.patch_size+self.patch_size] = 0.0
         return frames

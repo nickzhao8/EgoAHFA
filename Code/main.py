@@ -125,7 +125,7 @@ args.replace_sampler_ddp            = False
 # Logging Parameters
 args.log_root                       = 'Logs'
 # args.logger                         = TensorBoardLogger(args.log_root, name=f"{args.arch}_{date}")
-args.log_every_n_steps              = 20
+args.log_every_n_steps              = 64
 
 # Model-specific Parameters
 args.slowfast_alpha                 = int(4)

@@ -2,6 +2,7 @@ import os
 import os.path
 import numpy as np
 from PIL import Image
+import cv2
 from torchvision import transforms
 import torch
 from typing import List, Union, Tuple, Any
@@ -132,7 +133,8 @@ class VideoFrameDataset(torch.utils.data.Dataset):
         self._sanity_check_samples()
 
     def _load_image(self, directory: str, idx: int) -> Image.Image:
-        return Image.open(os.path.join(directory, self.imagefile_template.format(idx))).convert('RGB')
+        return cv2.cvtColor(cv2.imread(os.path.join(directory, self.imagefile_template.format(idx))), cv2.COLOR_BGR2RGB)
+        #return Image.open(os.path.join(directory, self.imagefile_template.format(idx))).convert('RGB')
 
     def _parse_annotationfile(self):
         self.video_list = [VideoRecord(x.strip().split(), self.root_path) for x in open(self.annotationfile_path)]
@@ -246,13 +248,15 @@ class VideoFrameDataset(torch.utils.data.Dataset):
         return len(self.video_list)
 
 class ImglistToTensor(torch.nn.Module):
+    def __init__(self, image_type: str = "float32") -> None:
+        self.image_type = image_type
+        super().__init__()
     """
     Converts a list of PIL images in the range [0,255] to a torch.FloatTensor
     of shape (NUM_IMAGES x CHANNELS x HEIGHT x WIDTH) in the range [0,1].
     Can be used as first transform for ``VideoFrameDataset``.
     """
-    @staticmethod
-    def forward(img_list: List[Image.Image], image_type: str) -> 'torch.Tensor[NUM_IMAGES, CHANNELS, HEIGHT, WIDTH]':
+    def forward(self, img_list: List[Image.Image]) -> 'torch.Tensor[NUM_IMAGES, CHANNELS, HEIGHT, WIDTH]':
         """
         Converts each PIL image in a list to
         a torch Tensor and stacks them into
@@ -264,7 +268,7 @@ class ImglistToTensor(torch.nn.Module):
         Returns:
             tensor of size ``NUM_IMAGES x CHANNELS x HEIGHT x WIDTH``
         """
-        if image_type == "float32":
+        if self.image_type == "float32":
             return torch.stack([transforms.functional.to_tensor(pic) for pic in img_list])
         else:
             return torch.stack([transforms.functional.pil_to_tensor(pic) for pic in img_list])

@@ -1,5 +1,6 @@
 from .video_dataset import VideoFrameDataset, ImglistToTensor, VideoRecord
 from .gen_annotations import gen_annotations, gen_sparse_annotations
+from .preprocessing import PreProcess, DataAugmentation
 import pytorch_lightning
 from pytorch_lightning.callbacks import Callback
 import pytorchvideo.data
@@ -245,6 +246,9 @@ class GRASSPDataModule(pytorch_lightning.LightningDataModule):
 class GRASSPFrameDataModule(GRASSPDataModule):
     def __init__(self, args):
         self.args = args
+        self.preprocess = PreProcess()
+        self.train_augment = DataAugmentation(mode="train", args=args)
+        self.val_augment = DataAugmentation(mode="val", args=args)
         subdir = next(iter(Path(self.args.data_root).glob('*')))
         # If absent, generate annotations that are used for VideoFrameDataset loading. 
         if not os.path.exists(Path(subdir, self.args.annotation_filename)):
@@ -258,12 +262,18 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                                 temporal_stride = self.args.stride,
                                 annotation_filename = self.args.annotation_filename)
         super().__init__(args)
+    
+    def on_after_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
+        if self.trainer.training:
+            batch["video"] = self.train_augment(batch["video"])
+        else:
+            batch["video"] = self.val_augment(batch["video"])
+        return batch
 
     def train_dataloader(self, **kwargs):
         """
         Build train dataset and dataloader for LOSO-CV.
         """
-        train_transform = self._make_transforms(mode="train")
         skipped_val = False
         subdirs = Path(self.args.data_root).glob('*')
         # Load all train subjects. Skip val subjects.
@@ -283,7 +293,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                     num_segments        = self.args.num_segments,
                     frames_per_segment  = self.args.frames_per_segment,
                     imagefile_template  = '{:04d}.jpg',
-                    transform           = train_transform,
+                    transform           = self.preprocess,
                     randaug             = self.args.randaug,
                 )
             else:
@@ -293,7 +303,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                     num_segments        = 1,
                     frames_per_segment  = self.args.num_frames,
                     imagefile_template  = '{:04d}.jpg',
-                    transform           = train_transform,
+                    transform           = self.preprocess,
                     randaug             = self.args.randaug,
                 )
             datasets.append(dataset) 
@@ -317,7 +327,6 @@ class GRASSPFrameDataModule(GRASSPDataModule):
         """
         Build val dataset and dataloader for LOSO-CV.
         """
-        val_transform = self._make_transforms(mode="val")
         made_val = False
         subdirs = Path(self.args.data_root).glob('*')
         # Skip train subjects. Load val subject.
@@ -335,7 +344,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                         num_segments        = self.args.num_segments,
                         frames_per_segment  = self.args.frames_per_segment,
                         imagefile_template  = '{:04d}.jpg',
-                        transform           = val_transform,
+                        transform           = self.preprocess,
                         randaug             = False,
                         test_mode           = True,
                     )
@@ -346,7 +355,7 @@ class GRASSPFrameDataModule(GRASSPDataModule):
                         num_segments        = 1,
                         frames_per_segment  = self.args.num_frames,
                         imagefile_template  = '{:04d}.jpg',
-                        transform           = val_transform,
+                        transform           = self.preprocess,
                         randaug             = False,
                         test_mode           = True,
                     )
@@ -416,11 +425,13 @@ class GRASSPFrameDataset (VideoFrameDataset):
                     frame_index += 1
         
         # If using RandAugment, convert PIL image to uint8 tensor, else float32 tensor.
-        image_type = "uint8" if self.randaug else "float32"
+        # image_type = "uint8" if self.randaug else "float32"
         # By default, transform PIL Images to Tensor
-        images = ImglistToTensor.forward(images, image_type)
-        if not self.randaug:
-            images = images.permute(1,0,2,3)
+        #images = ImglistToTensor.forward(images, image_type)
+        #if not self.randaug:
+        #    images = images.permute(1,0,2,3)
+        
+        # USING KORNIA NOW - return list of images and convert to tensor with preprocessing transform. 
 
         clip_dict = {
             'video':images,

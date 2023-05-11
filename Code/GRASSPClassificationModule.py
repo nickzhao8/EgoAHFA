@@ -34,14 +34,6 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
         self.train_MAE = MeanAbsoluteError()
         self.val_accuracy = MulticlassAccuracy(num_classes=self.args.num_classes+1)
         self.val_MAE = MeanAbsoluteError()
-        self.val_MSE = MeanSquaredError(squared=True)
-        self.val_RMSE = MeanSquaredError(squared=False)
-        self.val_microPrecision = MulticlassPrecision(average='micro', num_classes=self.args.num_classes+1)
-        self.val_macroPrecision = MulticlassPrecision(average='macro', num_classes=self.args.num_classes+1)
-        self.val_microRecall = MulticlassRecall(average='micro', num_classes=self.args.num_classes+1)
-        self.val_macroRecall = MulticlassRecall(average='macro', num_classes=self.args.num_classes+1)
-        self.val_microF1 = MulticlassF1Score(average='micro', num_classes=self.args.num_classes+1)
-        self.val_macroF1 = MulticlassF1Score(average='macro', num_classes=self.args.num_classes+1)
 
         self.sanity_check = False
         self.val_preds = []
@@ -288,33 +280,14 @@ class GRASSPClassificationModule(pytorch_lightning.LightningModule):
             pred_labels = torch.argmax(preds, dim=1)
         target = batch["label"]
         # Calculate metrics
-        acc = self.val_accuracy(pred_labels, target)
-        MAE = self.val_MAE(pred_labels, target)
-        MSE = self.val_MSE(pred_labels, target)
-        RMSE = self.val_RMSE(pred_labels, target)
-        microPrecision = self.val_microPrecision(pred_labels, target)
-        macroPrecision = self.val_macroPrecision(pred_labels, target)
-        microRecall = self.val_microRecall(pred_labels, target)
-        macroRecall = self.val_macroRecall(pred_labels, target)
-        microF1 = self.val_microF1(pred_labels, target)
-        macroF1 = self.val_macroF1(pred_labels, target)
+        self.val_accuracy.update(pred_labels, target)
+        self.val_MAE.update(pred_labels, target)
         # Log metrics
         self.log("val_loss", loss, on_epoch=True, sync_dist=True)
         self.log(
-            "val_acc", acc, on_step=True, on_epoch=True, sync_dist=True
+            "val_acc", self.val_accuracy, on_step=True, on_epoch=True, sync_dist=True
         )
-        metrics = {
-            'val_MAE': MAE,
-            'val_MSE': MSE,
-            'val_RMSE': RMSE,
-            "val_microPrecision": microPrecision,
-            "val_macroPrecision": macroPrecision,
-            "val_microRecall": microRecall,
-            "val_macroRecall": macroRecall,
-            "val_microF1": microF1,
-            "val_macroF1": macroF1,
-        }
-        self.log_dict(metrics, on_epoch=True, sync_dist=True)
+        self.log("val_MAE", self.val_MAE, on_epoch=True, sync_dist=True)
         # Custom preds, target, tasks Logging
         self.val_filenames = self.record_filenames(self.val_filenames, pred_labels, target.tolist(), batch)
         self.val_tasks = self.record_tasks(self.val_tasks, pred_labels, target.tolist(), batch['video_name'])
